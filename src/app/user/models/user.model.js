@@ -30,7 +30,7 @@ const userSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    isverified: {
+    isVerified: {
       type: Boolean,
       default: false,
     },
