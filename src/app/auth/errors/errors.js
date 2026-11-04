@@ -1,6 +1,34 @@
-import { AppError } from "../../../common/errors/appError.js";
+import { AppError } from "../../../lib/errors/appError.js";
 
-export const optExpired = new AppError("otp expired", 404);
+export const otpExpired = new AppError("otp expired", 404);
 export const invalidOTP = new AppError("invalid otp", 400);
+export const tooManyOtpAttempts = new AppError(
+  "too many wrong codes, request a new one",
+  429,
+);
 
-export const invalidPassword = new AppError("invalid password", 403);
+export const invalidCredentials = new AppError(
+  "invalid email or password",
+  401,
+);
+export const twoStepNotEnabled = new AppError(
+  "2 step verification is not enabled",
+  400,
+);
+export const noPasswordSet = new AppError(
+  "this account uses google sign-in",
+  400,
+);
+export const googleEmailNotVerified = new AppError(
+  "your google email is not verified",
+  403,
+);
+
+export const refreshTokenMissing = new AppError(
+  "no refresh token provided",
+  401,
+);
+export const invalidRefreshToken = new AppError(
+  "invalid or expired refresh token",
+  401,
+);

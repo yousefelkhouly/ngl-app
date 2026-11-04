@@ -1,12 +1,14 @@
 import { model, Schema } from "mongoose";
 
+export const NAME_MAX_LENGTH = 20;
+
 const userSchema = new Schema(
   {
     name: {
       type: String,
       required: true,
       minLength: 3,
-      maxLength: 20,
+      maxLength: NAME_MAX_LENGTH,
       trim: true,
     },
     email: {
@@ -25,6 +27,7 @@ const userSchema = new Schema(
     provider: {
       type: String,
       enum: ["local", "google", "facebook"],
+      default: "local",
     },
     isDeleted: {
       type: Boolean,
@@ -40,12 +43,24 @@ const userSchema = new Schema(
       enum: ["male", "female"],
       default: "male",
     },
+    profilePicturePath: String,
+    coverImagesPath: [String],
+    cvPath: String,
+    twoStepVerification: {
+      type: Boolean,
+      default: false,
+    },
   },
-
   {
-    timestamps: {
-      createdAt: true,
-      updatedAt: true,
+    timestamps: true,
+    // runs whenever a user is sent with res.json, so the password hash
+    // can never end up in a response, even if a query forgets to exclude it
+    toJSON: {
+      transform: (doc, ret) => {
+        delete ret.password;
+        delete ret.__v;
+        return ret;
+      },
     },
   },
 );

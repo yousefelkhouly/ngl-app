@@ -1,8 +1,86 @@
-POST http://localhost:5000/auth/register
+@base = http://localhost:5000/api
+@email = you@example.com
+
+### health (not under /api)
+GET http://localhost:5000/health
+
+### ---------- account ----------
+
+### register (emails a verification code)
+POST {{base}}/auth/register
 Content-Type: application/json
 
 {
   "name": "med",
-  "email": "mohamedmedan258@gmail.com",
+  "email": "{{email}}",
   "password": "123456"
 }
+
+### verify account with the code from register or /send-otp
+PATCH {{base}}/auth/verify-account
+Content-Type: application/json
+
+{ "email": "{{email}}", "code": "123456" }
+
+### send a new account code (for verify-account or reset-password)
+POST {{base}}/auth/send-otp
+Content-Type: application/json
+
+{ "email": "{{email}}" }
+
+### reset password with the code from /send-otp
+PATCH {{base}}/auth/reset-password
+Content-Type: application/json
+
+{ "email": "{{email}}", "code": "123456", "newPassword": "1234567" }
+
+### ---------- login ----------
+
+### login (always emails a login code, never returns tokens)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "123456" }
+
+### 2FA off: turn it on with the login code (also logs you in)
+PATCH {{base}}/auth/enable-2-step-verification
+Content-Type: application/json
+
+{ "email": "{{email}}", "code": "123456" }
+
+### 2FA on: log in with the login code
+POST {{base}}/auth/verify-code-to-login
+Content-Type: application/json
+
+{ "email": "{{email}}", "code": "123456" }
+
+### new tokens from the refresh cookie
+POST {{base}}/auth/refresh
+
+### logout
+POST {{base}}/auth/logout
+
+### ---------- messages ----------
+
+### anonymous message
+POST {{base}}/message
+Content-Type: application/json
+
+{ "content": "hello there", "receiver": "<user id>" }
+
+### message with your name on it (logged in)
+POST {{base}}/message/public
+Content-Type: application/json
+
+{ "content": "hello there", "receiver": "<user id>" }
+
+### your inbox (logged in)
+GET {{base}}/message/public
+
+### ---------- requests (logged in, as the receiver) ----------
+
+### accept: creates a conversation
+PATCH {{base}}/request/<request id>/accept
+
+### decline
+PATCH {{base}}/request/<request id>/decline

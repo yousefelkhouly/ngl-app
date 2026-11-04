@@ -1,2 +1,4 @@
 .env
-node_module
+node_modules
+# files users upload, created at runtime
+uploads/
