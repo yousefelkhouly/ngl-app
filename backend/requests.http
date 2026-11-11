@@ -62,25 +62,40 @@ POST {{base}}/auth/logout
 
 ### ---------- messages ----------
 
-### anonymous message
+### message without an account (can never be accepted)
 POST {{base}}/message
 Content-Type: application/json
 
 { "content": "hello there", "receiver": "<user id>" }
 
-### message with your name on it (logged in)
+### message while logged in: still anonymous to the receiver until they accept it
 POST {{base}}/message/public
 Content-Type: application/json
 
 { "content": "hello there", "receiver": "<user id>" }
 
-### your inbox (logged in)
+### your inbox (logged in). each message has request: { _id, status } or null,
+### and sender stays null until you accept its request
 GET {{base}}/message/public
 
 ### ---------- requests (logged in, as the receiver) ----------
 
-### accept: creates a conversation
+### accept: reveals the sender and opens a conversation
 PATCH {{base}}/request/<request id>/accept
 
-### decline
+### decline: the sender stays hidden
 PATCH {{base}}/request/<request id>/decline
+
+### ---------- conversations (logged in) ----------
+
+### your conversations, each with its last message
+GET {{base}}/conversation
+
+### one conversation with all its messages
+GET {{base}}/conversation/<conversation id>
+
+### send a message in a conversation
+POST {{base}}/conversation/<conversation id>/messages
+Content-Type: application/json
+
+{ "content": "ok" }

@@ -5,7 +5,6 @@ import { sendMessageDto } from "../dto/message.dto.js";
 export async function sendMessage(req, res, next) {
   try {
     const { content, receiver } = validateDTO(sendMessageDto, req.body);
-    // undefined on the anonymous route, which has no guard
     const sender = req.user?.id;
     const createdMessage = await messageService.sendMessage(
       content,

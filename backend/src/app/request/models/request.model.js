@@ -3,7 +3,7 @@ import { model, Schema } from "mongoose";
 export const REQUEST_STATUS = {
   pending: "pending",
   accepted: "accepted",
-  declined: "decline",
+  declined: "declined",
 };
 
 const requestSchema = new Schema(
@@ -32,6 +32,7 @@ const requestSchema = new Schema(
 );
 
 requestSchema.index({ receiverOfRequest: 1, status: 1 });
+requestSchema.index({ messageId: 1 });
 
 export const Request = model("Request", requestSchema, "requestmodels");
   

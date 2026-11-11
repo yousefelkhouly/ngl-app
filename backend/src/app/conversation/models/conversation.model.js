@@ -12,6 +12,11 @@ const conversationSchema = new Schema(
       ref: "User",
       required: true,
     },
+    pairKey: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     messages: [
       {
         msgId: {
@@ -30,7 +35,7 @@ const conversationSchema = new Schema(
   { timestamps: true },
 );
 
-// finding the conversation between two users
-conversationSchema.index({ sender: 1, receiver: 1 });
+conversationSchema.index({ sender: 1 });
+conversationSchema.index({ receiver: 1 });
 
 export const Conversation = model("Conversation", conversationSchema);

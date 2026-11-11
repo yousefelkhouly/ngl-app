@@ -1,10 +1,6 @@
-import { Types } from "mongoose";
 import { z } from "zod";
+import { objectIdField } from "../../../lib/validation/validation.js";
 
-// checked before it reaches mongoose, a bad id would otherwise throw a CastError (500)
 export const requestIdDto = z.object({
-  id: z
-    .string()
-    .trim()
-    .refine((val) => Types.ObjectId.isValid(val), "invalid request id"),
+  id: objectIdField("invalid request id"),
 });

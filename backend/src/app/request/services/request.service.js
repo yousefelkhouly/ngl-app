@@ -7,8 +7,6 @@ import {
   requestNotFound,
 } from "../errors.js";
 
-// sets the status if the user is the receiver and the request is pending,
-// otherwise throws the error that explains why not
 async function answerRequest(requestId, userId, status) {
   const updated = await requestRepository.answerPendingRequest(
     requestId,
@@ -17,7 +15,6 @@ async function answerRequest(requestId, userId, status) {
   );
   if (updated) return updated;
 
-  // the update matched nothing, find out which check failed
   const request = await requestRepository.findRequestById(requestId);
   if (!request) throw requestNotFound;
   if (request.receiverOfRequest.toString() !== userId) throw notRequestReceiver;
@@ -25,27 +22,50 @@ async function answerRequest(requestId, userId, status) {
 }
 
 export async function declineRequest(requestId, userId) {
-  return answerRequest(requestId, userId, REQUEST_STATUS.declined);
+  const { _id, status } = await answerRequest(
+    requestId,
+    userId,
+    REQUEST_STATUS.declined,
+  );
+  return { _id, status };
+}
+
+async function openConversation({ senderOfRequest, receiverOfRequest, messageId }) {
+  let existing = await conversationRepository.findConversationBetween(
+    senderOfRequest,
+    receiverOfRequest,
+  );
+
+  if (!existing) {
+    try {
+      return await conversationRepository.createConversation({
+        sender: senderOfRequest,
+        receiver: receiverOfRequest,
+        messages: messageId ? [{ msgId: messageId, sender: senderOfRequest }] : [],
+      });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      existing = await conversationRepository.findConversationBetween(
+        senderOfRequest,
+        receiverOfRequest,
+      );
+    }
+  }
+
+  if (messageId) {
+    await conversationRepository.addMessage(existing._id, messageId, senderOfRequest);
+  }
+  return existing;
 }
 
 export async function acceptRequest(requestId, userId) {
   const request = await answerRequest(requestId, userId, REQUEST_STATUS.accepted);
 
-  const { senderOfRequest, receiverOfRequest, messageId } = request;
-
-  // don't make a second conversation if these two already have one
-  const existing = await conversationRepository.findConversationBetween(
-    senderOfRequest,
-    receiverOfRequest,
-  );
-  if (existing) return { request, conversation: existing };
-
-  const conversation = await conversationRepository.createConversation({
-    sender: senderOfRequest,
-    receiver: receiverOfRequest,
-    // the message the request came from starts the conversation
-    messages: messageId ? [{ msgId: messageId, sender: senderOfRequest }] : [],
-  });
-
-  return { request, conversation };
+  try {
+    const conversation = await openConversation(request);
+    return { request, conversation };
+  } catch (error) {
+    await requestRepository.setRequestStatus(request._id, REQUEST_STATUS.pending);
+    throw error;
+  }
 }

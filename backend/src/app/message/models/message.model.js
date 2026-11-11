@@ -16,10 +16,13 @@ const messageSchema = new Schema(
       ref: "User",
       required: true,
     },
-    // empty for anonymous messages
     sender: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    conversation: {
+      type: Schema.Types.ObjectId,
+      ref: "Conversation",
     },
     isDeleted: {
       type: Boolean,
@@ -29,7 +32,6 @@ const messageSchema = new Schema(
   { timestamps: true },
 );
 
-// the inbox query filters by receiver and sorts by date
 messageSchema.index({ receiver: 1, createdAt: -1 });
 
 export const Message = model("Message", messageSchema);
