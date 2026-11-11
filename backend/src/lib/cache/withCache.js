@@ -1,7 +1,5 @@
 import { cacheProvider } from "./init.js";
 
-// caches successful GET responses for `ttl` seconds.
-// only use it on public routes: the key is the URL, so every user gets the same answer
 export function withCache(ttl = 3600) {
   return async (req, res, next) => {
     const key = `cache:${req.method}:${req.originalUrl}`;

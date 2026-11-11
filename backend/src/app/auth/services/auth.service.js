@@ -1,12 +1,13 @@
+import crypto from "crypto";
 import * as userRepository from "../../user/repositories/user.repository.js";
 import { NAME_MAX_LENGTH } from "../../user/models/user.model.js";
 import { toSeconds } from "../../../pkg/utils/time.js";
 import {
+  emailNotSent,
   googleEmailNotVerified,
   invalidCredentials,
   invalidOTP,
   invalidRefreshToken,
-  noPasswordSet,
   otpExpired,
   refreshTokenMissing,
   tooManyOtpAttempts,
@@ -27,19 +28,16 @@ import {
 } from "../utils/token.js";
 import { comparePassword, hashPassword } from "../utils/hash.js";
 import { verifyGoogleToken } from "../../../lib/utils/google-auth.js";
-import { mailjetProvider } from "../../../lib/email/init.js";
+import { emailProvider } from "../../../lib/email/init.js";
 import { cacheProvider } from "../../../lib/cache/init.js";
+import { logger } from "../../../pkg/logger/logger.js";
 
-// ---------- one-time codes ----------
 
 const OTP_TTL = toSeconds(5, "minutes");
 const MAX_OTP_ATTEMPTS = 5;
 
-// each kind of code has its own redis key, so a code can only be used for what it was sent for
 const OTP_KEYS = {
-  // register and /send-otp: used by /verify-account and /reset-password
   account: "otp",
-  // /login: used by /verify-code-to-login and /enable-2-step-verification
   login: "otp:login",
 };
 
@@ -50,54 +48,69 @@ const attemptsKey = (prefix, email) => `${prefix}:attempts:${email}`;
 async function sendCode(prefix, email, subject, text) {
   const code = generateOtp();
   await cacheProvider.set(otpKey(prefix, email), code, OTP_TTL);
-  // a new code gets a fresh set of tries
   await cacheProvider.del(attemptsKey(prefix, email));
-  await mailjetProvider.sendmail(email, subject, `<h1>${text} ${code}</h1>`);
+  try {
+    await emailProvider.sendmail(email, subject, `<h1>${text} ${code}</h1>`, `${text} ${code}`);
+  } catch (error) {
+    // the SMTP error stays in the logs; the client gets a message it can act on
+    logger.error("sending an email failed", { stack: error.stack });
+    throw emailNotSent;
+  }
 }
 
-// checks the code, runs `action(user)`, then deletes the code so it can't be reused.
-// after MAX_OTP_ATTEMPTS wrong codes the code is deleted: a 6 digit code has
-// 1,000,000 possibilities, without a limit it could be guessed by a script
 async function verifyOtp(email, code, prefix, action) {
-  const user = await userRepository.findUserByEmail(email);
-  if (!user) throw userNotExist;
-
   const key = otpKey(prefix, email);
   const otp = await cacheProvider.get(key);
   if (!otp) throw otpExpired;
 
+  const attempts = await cacheProvider.incr(attemptsKey(prefix, email), OTP_TTL);
+  if (attempts > MAX_OTP_ATTEMPTS) throw tooManyOtpAttempts;
+
   if (otp !== code) {
-    const attempts = await cacheProvider.incr(attemptsKey(prefix, email), OTP_TTL);
-    if (attempts >= MAX_OTP_ATTEMPTS) {
-      await cacheProvider.del(key);
-      await cacheProvider.del(attemptsKey(prefix, email));
+    if (attempts === MAX_OTP_ATTEMPTS) {
+      await cacheProvider.del(key, attemptsKey(prefix, email));
       throw tooManyOtpAttempts;
     }
     throw invalidOTP;
   }
 
+  const user = await userRepository.findUserByEmail(email);
+  if (!user) throw userNotExist;
+
   const result = await action(user);
 
-  await cacheProvider.del(key);
-  await cacheProvider.del(attemptsKey(prefix, email));
+  await cacheProvider.del(key, attemptsKey(prefix, email));
   return result;
 }
 
-// ---------- tokens ----------
+const refreshKey = (jti) => `refresh:${jti}`;
+const userSessionsKey = (userId) => `refresh:user:${userId}`;
 
 async function issueTokens(user) {
+  const userId = user._id.toString();
   const accessToken = generateAccessToken({
-    id: user._id.toString(),
+    id: userId,
     email: user.email,
     name: user.name,
   });
-  const { token: refreshToken, jti } = generateRefreshToken(user._id.toString());
-  // the refresh token only works while this key exists, which is how logout revokes it
-  await cacheProvider.set(`refresh:${jti}`, user._id.toString(), REFRESH_TOKEN_TTL);
+  const { token: refreshToken, jti } = generateRefreshToken(userId);
+  await cacheProvider.set(refreshKey(jti), userId, REFRESH_TOKEN_TTL);
+  await cacheProvider.addToSet(userSessionsKey(userId), jti, REFRESH_TOKEN_TTL);
   return { accessToken, refreshToken };
 }
 
-// ---------- register / verify ----------
+async function revokeRefreshToken(userId, jti) {
+  await cacheProvider.removeFromSet(userSessionsKey(userId), jti);
+  // del returns how many keys it removed, so only one request can use a token
+  return (await cacheProvider.del(refreshKey(jti))) > 0;
+}
+
+async function revokeAllSessions(userId) {
+  const key = userSessionsKey(userId);
+  const jtis = await cacheProvider.getSet(key);
+  await cacheProvider.del(key, ...jtis.map(refreshKey));
+}
+
 
 export async function register(userData) {
   const userExist = await userRepository.findUserByEmail(userData.email);
@@ -108,9 +121,15 @@ export async function register(userData) {
     password: await hashPassword(userData.password),
   });
 
-  await sendCode(OTP_KEYS.account, userData.email, "verification code", "your verification code is");
+  try {
+    await sendCode(OTP_KEYS.account, userData.email, "verification code", "your verification code is");
+  } catch (error) {
+    // without the code the account could never be verified, and signing up again
+    // would say "user already exists": remove it so a retry works
+    await userRepository.deleteUserById(createdUser._id);
+    throw error;
+  }
 
-  // the model's toJSON removes the password hash when this is sent
   return createdUser;
 }
 
@@ -121,10 +140,9 @@ export async function verifyAccount(email, code) {
   });
 }
 
-// sends a new account code, used to verify the account or to reset the password
 export async function sendOtp(email) {
   const user = await userRepository.findUserByEmail(email);
-  if (!user) throw userNotExist;
+  if (!user) return;
 
   await sendCode(OTP_KEYS.account, email, "new otp", "your new otp is");
 }
@@ -134,31 +152,29 @@ export async function resetPassword(email, code, newPassword) {
     await userRepository.updateUserById(user._id, {
       password: await hashPassword(newPassword),
     });
+    await revokeAllSessions(user._id.toString());
   });
 }
 
-// ---------- login ----------
+let dummyHash;
+const getDummyHash = () => (dummyHash ??= hashPassword(crypto.randomUUID()));
 
-// the same error for "no such user" and "wrong password",
-// so the response doesn't tell a stranger which emails have an account
 async function checkCredentials(email, password) {
   const user = await userRepository.findUserByEmail(email);
-  if (!user) throw invalidCredentials;
 
-  // google users have no password, and argon2.verify throws on a missing hash
-  if (!user.password) throw noPasswordSet;
+  if (!user?.password) {
+    await comparePassword(password, await getDummyHash());
+    throw invalidCredentials;
+  }
 
   const match = await comparePassword(password, user.password);
   if (!match) throw invalidCredentials;
 
-  // checked after the password, so only the owner learns the account isn't verified
   if (!user.isVerified) throw userNotVerified;
 
   return user;
 }
 
-// every password login emails a code: users with 2FA use it on /verify-code-to-login,
-// users without it use it on /enable-2-step-verification
 export async function login(email, password) {
   const user = await checkCredentials(email, password);
   const twoStepEnabled = Boolean(user.twoStepVerification);
@@ -183,8 +199,6 @@ export async function verifyCodeToLogin(email, code) {
   });
 }
 
-// uses the code sent by login, so the password was already checked and access
-// to the inbox alone can't turn on 2FA. the user did what login asked, so they're logged in too
 export async function enable2StepVerification(email, code) {
   return verifyOtp(email, code, OTP_KEYS.login, async (user) => {
     await userRepository.updateUserById(user._id, { twoStepVerification: true });
@@ -195,22 +209,18 @@ export async function enable2StepVerification(email, code) {
 export async function loginWithGoogle(idToken) {
   const googleUser = await verifyGoogleToken(idToken);
 
-  // without this, a google account using someone else's unverified email
-  // could log in to that person's account here
   if (!googleUser.email_verified) throw googleEmailNotVerified;
 
   const email = googleUser.email.toLowerCase();
   const user = await userRepository.findUserByEmail(email);
 
   if (user) {
-    // google just proved this person owns the email
     if (!user.isVerified) {
       await userRepository.updateUserById(user._id, { isVerified: true });
     }
     return issueTokens(user);
   }
 
-  // google names can be longer or shorter than the model allows
   let name = (googleUser.name ?? email.split("@")[0]).slice(0, NAME_MAX_LENGTH).trim();
   if (name.length < 3) name = "google user";
 
@@ -223,7 +233,6 @@ export async function loginWithGoogle(idToken) {
   return issueTokens(createdUser);
 }
 
-// ---------- refresh / logout ----------
 
 export async function refresh(refreshToken) {
   if (!refreshToken) throw refreshTokenMissing;
@@ -235,9 +244,8 @@ export async function refresh(refreshToken) {
     throw invalidRefreshToken;
   }
 
-  // del returns how many keys it removed, so only one request can use a token
-  const deleted = await cacheProvider.del(`refresh:${payload.jti}`);
-  if (deleted === 0) throw invalidRefreshToken;
+  const revoked = await revokeRefreshToken(payload.id, payload.jti);
+  if (!revoked) throw invalidRefreshToken;
 
   const user = await userRepository.findUserById(payload.id);
   if (!user) throw userNotExist;
@@ -249,8 +257,7 @@ export async function logout(refreshToken) {
   if (!refreshToken) return;
   try {
     const payload = verifyRefreshToken(refreshToken);
-    await cacheProvider.del(`refresh:${payload.jti}`);
+    await revokeRefreshToken(payload.id, payload.jti);
   } catch {
-    // token is already invalid, nothing to revoke
   }
 }

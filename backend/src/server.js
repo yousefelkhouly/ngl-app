@@ -3,10 +3,21 @@ import { createApp } from "./app.js";
 import { env } from "./lib/config/env.js";
 import { connectDb, disconnectDb } from "./lib/db/mongoose.js";
 import { cacheProvider } from "./lib/cache/init.js";
+import { emailProvider } from "./lib/email/init.js";
 import { logger } from "./pkg/logger/logger.js";
 
 async function start() {
   await connectDb();
+
+  // not awaited: a mail outage shouldn't stop the app, but it should show up right away
+  emailProvider
+    .verify()
+    .then(() => logger.info("email: logged in to the SMTP server"))
+    .catch((error) =>
+      logger.error("email: can't log in to the SMTP server, codes won't be sent", {
+        stack: error.stack,
+      }),
+    );
 
   const server = http.createServer(createApp());
   server.listen(env.port, () =>

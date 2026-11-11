@@ -1,38 +1,45 @@
 import fs from "fs/promises";
+import path from "path";
 import * as userRepository from "../repositories/user.repository.js";
 import { userNotExist } from "../errors.js";
+import { UPLOADS_DIR } from "../../../pkg/media/multer.js";
 
-// deletes files without failing when one is already gone
+const publicPath = (file) => `/uploads/${file.filename}`;
+
+const diskPath = (savedPath) => path.join(UPLOADS_DIR, path.basename(savedPath));
+
 async function removeFiles(paths) {
-  await Promise.all(paths.map((path) => fs.rm(path, { force: true })));
+  await Promise.all(paths.map((p) => fs.rm(p, { force: true })));
 }
 
-// saves the new path(s) first, then deletes the old file(s),
-// so a failed update never leaves the user with no file at all
-async function replaceUserFiles(userId, field, newValue, uploadedPaths) {
-  const user = await userRepository.findUserById(userId);
-  if (!user) {
-    // nobody to attach the upload to, don't keep it on disk
+async function replaceUserFiles(userId, field, newValue, uploadedFiles) {
+  const uploadedPaths = uploadedFiles.map((file) => file.path);
+
+  let before;
+  try {
+    before = await userRepository.replaceUserField(userId, field, newValue);
+  } catch (error) {
+    await removeFiles(uploadedPaths);
+    throw error;
+  }
+  if (!before) {
     await removeFiles(uploadedPaths);
     throw userNotExist;
   }
 
-  const oldValue = user[field];
-  await userRepository.updateUserById(userId, { [field]: newValue });
-
+  const oldValue = before[field];
   const oldPaths = Array.isArray(oldValue) ? oldValue : [oldValue];
-  await removeFiles(oldPaths.filter(Boolean));
+  await removeFiles(oldPaths.filter(Boolean).map(diskPath));
 }
 
 export async function uploadProfile(userId, file) {
-  await replaceUserFiles(userId, "profilePicturePath", file.path, [file.path]);
+  await replaceUserFiles(userId, "profilePicturePath", publicPath(file), [file]);
 }
 
 export async function uploadCv(userId, file) {
-  await replaceUserFiles(userId, "cvPath", file.path, [file.path]);
+  await replaceUserFiles(userId, "cvPath", publicPath(file), [file]);
 }
 
 export async function uploadCoverImages(userId, files) {
-  const paths = files.map((file) => file.path);
-  await replaceUserFiles(userId, "coverImagesPath", paths, paths);
+  await replaceUserFiles(userId, "coverImagesPath", files.map(publicPath), files);
 }

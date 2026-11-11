@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { toSeconds } from "../../../pkg/utils/time.js";
 import { env } from "../../../lib/config/env.js";
 
-// jsonwebtoken reads a numeric expiresIn as seconds
 export const ACCESS_TOKEN_TTL = toSeconds(15, "minutes");
 export const REFRESH_TOKEN_TTL = toSeconds(7 * 24, "hours");
 

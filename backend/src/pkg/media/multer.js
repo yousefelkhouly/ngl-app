@@ -1,11 +1,12 @@
 import multer, { diskStorage } from "multer";
 import crypto from "crypto";
 import fs from "fs";
-import path from "path";
+import { fileURLToPath } from "url";
 import { AppError } from "../../lib/errors/appError.js";
-import { allowedFields, MAX_FILE_SIZE } from "./file.validation.js";
+import { allowedFields, EXTENSIONS, MAX_FILE_SIZE } from "./file.validation.js";
 
-export const UPLOADS_DIR = "uploads";
+// backend/uploads, resolved from this file rather than the cwd
+export const UPLOADS_DIR = fileURLToPath(new URL("../../../uploads", import.meta.url));
 // multer doesn't create the folder: without this, every upload on a fresh clone fails
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
@@ -23,10 +24,10 @@ function multerFile(allowedMimeTypes = allowedFields.image) {
     storage: diskStorage({
       destination: UPLOADS_DIR,
       filename: (req, file, cb) => {
-        // never use the client's file name in the path: a name like "../../x"
-        // would write outside uploads/. only the extension is kept
-        const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, "");
-        cb(null, `${crypto.randomUUID()}${ext}`);
+        // nothing from the client's file name: "../../x" would write outside uploads/,
+        // and its extension decides how the file is served. fileFilter already
+        // limited the mimetype to one that has an extension
+        cb(null, `${crypto.randomUUID()}${EXTENSIONS[file.mimetype]}`);
       },
     }),
   });

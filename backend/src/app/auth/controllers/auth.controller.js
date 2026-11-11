@@ -42,7 +42,8 @@ export async function sendOtp(req, res, next) {
     const { email } = validateDTO(sendOtpDTO, req.body);
     await authService.sendOtp(email);
     res.json({
-      message: "new otp sent, check your mail",
+      // the same answer whether or not the email has an account
+      message: "if an account uses this email, a new code was sent to it",
       success: true,
     });
   } catch (error) {

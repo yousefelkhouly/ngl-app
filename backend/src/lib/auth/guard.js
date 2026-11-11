@@ -2,7 +2,6 @@ import jwt from "jsonwebtoken";
 import { AppError } from "../errors/appError.js";
 import { env } from "../config/env.js";
 
-// reads the access_token cookie and puts its payload ({ id, email, name }) on req.user
 export function guard(req, res, next) {
   try {
     const token = req.cookies.access_token;

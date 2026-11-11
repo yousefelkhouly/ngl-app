@@ -3,10 +3,9 @@ import { env } from "../../../lib/config/env.js";
 
 const cookieOptions = {
   httpOnly: true,
-  sameSite: "strict",
-  secure: env.isProduction,
+  sameSite: env.cookieSameSite,
+  secure: env.isProduction || env.cookieSameSite === "none",
 };
-// only sent to /api/auth/* (refresh and logout), not with every request
 const refreshCookieOptions = {
   ...cookieOptions,
   path: "/api/auth",
@@ -23,7 +22,6 @@ export function setAuthCookies(res, { accessToken, refreshToken }) {
   });
 }
 
-// clearCookie only works when the options (especially path) match setAuthCookies
 export function clearAuthCookies(res) {
   res.clearCookie("access_token", cookieOptions);
   res.clearCookie("refresh_token", refreshCookieOptions);

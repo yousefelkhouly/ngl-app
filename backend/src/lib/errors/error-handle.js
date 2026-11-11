@@ -2,8 +2,6 @@ import multer from "multer";
 import { logger } from "../../pkg/logger/logger.js";
 import { env } from "../config/env.js";
 
-// turns errors thrown by libraries into an AppError-like { statusCode, message },
-// so the client gets a 4xx with a useful message instead of "something went wrong"
 function toClientError(err) {
   if (err.isOperational === true) return err;
 
@@ -14,6 +12,11 @@ function toClientError(err) {
   // body bigger than express.json's limit
   if (err.type === "entity.too.large") {
     return { statusCode: 413, message: "request body is too large" };
+  }
+  // any other 4xx from express or body-parser (unsupported charset or encoding,
+  // aborted request...). `expose` is their flag for "safe to show the client"
+  if (err.expose === true && err.status >= 400 && err.status < 500) {
+    return { statusCode: err.status, message: err.message };
   }
   // multer: file too big, too many files, unexpected field name...
   if (err instanceof multer.MulterError) {

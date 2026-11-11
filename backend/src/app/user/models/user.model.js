@@ -53,8 +53,6 @@ const userSchema = new Schema(
   },
   {
     timestamps: true,
-    // runs whenever a user is sent with res.json, so the password hash
-    // can never end up in a response, even if a query forgets to exclude it
     toJSON: {
       transform: (doc, ret) => {
         delete ret.password;
