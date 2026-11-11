@@ -14,14 +14,20 @@ export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 export const MAX_COVER_IMAGES = 4;
 
 export const IMAGE_TYPES = ["image/jpeg", "image/png"];
+// personal information. the backend checks the same list (allowedFields.personalDocument)
+export const MAX_DOCUMENTS = 10;
+export const DOCUMENTS_PER_UPLOAD = 5;
 export const DOCUMENT_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
 ];
 
 // for <input type="file" accept>. the extensions help pickers that don't know the docx type
 export const IMAGE_ACCEPT = IMAGE_TYPES.join(",");
-export const DOCUMENT_ACCEPT = [".pdf", ".docx", ...DOCUMENT_TYPES].join(",");
+export const DOCUMENT_ACCEPT = [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ...DOCUMENT_TYPES].join(",");
 
 const objectIdPattern = /^[0-9a-f]{24}$/i;
 export const isObjectId = (value: string) => objectIdPattern.test(value);

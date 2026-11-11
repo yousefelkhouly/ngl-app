@@ -38,10 +38,40 @@ test("profile: details, uploads with checks, sign out", async ({ page, context, 
   await covers.getByRole("button", { name: "Upload" }).click();
   await expect(covers.getByRole("status")).toHaveText("Saved");
 
-  const cv = page.getByRole("region", { name: "CV" });
-  await cv.getByLabel("Choose a file").filter({ visible: true }).setInputFiles({ name: "cv.pdf", mimeType: "application/pdf", buffer: pdf });
-  await cv.getByRole("button", { name: "Upload" }).click();
-  await expect(cv.getByRole("status")).toHaveText("Saved");
+  // the header shows what was just saved, without a reload: the picture over a 2-image slideshow
+  const banner = page.getByRole("region", { name: `Cover photos of ${user.name}` });
+  await expect(banner.getByRole("img")).toHaveCount(2);
+  await expect(banner.getByRole("button", { name: "Show cover image 2" })).toBeVisible();
+  await banner.getByRole("button", { name: "Next cover image" }).click();
+  await expect(banner.getByRole("button", { name: "Show cover image 2" })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator("main img[src^='/uploads/']").first()).toBeVisible();
+  // and it's still there after a reload: it comes from the backend, not the upload
+  await page.reload();
+  await expect(banner.getByRole("img")).toHaveCount(2);
+
+  const info = page.getByRole("region", { name: "Personal information" });
+  await expect(info.getByText("No documents yet.")).toBeVisible();
+  await info.getByLabel("Choose files").filter({ visible: true }).setInputFiles([
+    { name: "cv.pdf", mimeType: "application/pdf", buffer: pdf },
+    { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("my notes") },
+  ]);
+  await info.getByRole("button", { name: "Upload" }).click();
+  await expect(info.getByRole("status")).toHaveText("Saved");
+  const list = info.getByRole("list", { name: "Your documents" });
+  await expect(list.getByRole("listitem")).toHaveCount(2);
+  await expect(list.getByRole("link", { name: "cv.pdf", exact: true })).toHaveAttribute("download", "cv.pdf");
+
+  // a "text" file with binary bytes in it is refused by the backend
+  await info.getByLabel("Choose files").filter({ visible: true }).setInputFiles({ name: "fake.txt", mimeType: "text/plain", buffer: Buffer.from([0x4d, 0x5a, 0x00, 0x01]) });
+  await info.getByRole("button", { name: "Upload" }).click();
+  await expect(info.getByRole("alert")).toContainText("Invalid file type");
+
+  // deleting asks first
+  await list.getByRole("button", { name: "Delete notes.txt", exact: true }).click();
+  await list.getByRole("button", { name: "Delete notes.txt? Press again to confirm" }).click();
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await page.reload();
+  await expect(info.getByRole("list", { name: "Your documents" }).getByRole("listitem")).toHaveCount(1);
 
   await page.getByRole("main").getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
@@ -77,4 +107,10 @@ test("a profile picture shows up for the people you chat with", async ({ page, c
   const response = await page.request.get(src as string);
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toBe("image/png");
+
+  // the public page people send notes from shows the same picture, above the form
+  await page.goto(`/u/${bob.id}`);
+  await expect(page.getByRole("main").getByText(bob.name, { exact: true })).toBeVisible();
+  await expect(page.locator("main img[src^='/uploads/']")).toHaveAttribute("src", src as string);
+  await expect(page.getByLabel("Your note").filter({ visible: true })).toBeVisible();
 });

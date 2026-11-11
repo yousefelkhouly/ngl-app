@@ -1,19 +1,53 @@
-import { apiRequest } from "./client";
+import { apiRequest, type ApiEnvelope } from "./client";
+import type { Profile, PublicProfile, UserDocument } from "./types";
 
-// backend/src/app/user/user.route.js. the backend answers with a message only,
-// it doesn't return the saved file's path
+// backend/src/app/user/user.route.js
 
-export type UploadKind = "profilePicture" | "cv" | "coverImages";
+export async function getProfile(): Promise<Profile> {
+  const response = await apiRequest<ApiEnvelope<Profile>>("/user/me", { auth: true });
+  return response.data as Profile;
+}
 
-const routes: Record<UploadKind, { path: string; field: string }> = {
-  profilePicture: { path: "/user/upload-profile-picture", field: "profilePicture" },
-  cv: { path: "/user/upload-cv", field: "cv" },
-  coverImages: { path: "/user/upload-cover-images", field: "cover-images" },
-};
+export async function getPublicProfile(id: string): Promise<PublicProfile> {
+  const response = await apiRequest<ApiEnvelope<PublicProfile>>(`/user/${id}`);
+  return response.data as PublicProfile;
+}
 
-export function uploadFiles(kind: UploadKind, files: File[]) {
-  const { path, field } = routes[kind];
+function formOf(field: string, files: File[]) {
   const form = new FormData();
   for (const file of files) form.append(field, file);
-  return apiRequest(path, { method: "POST", body: form, auth: true });
+  return form;
+}
+
+export async function uploadProfilePicture(file: File): Promise<string> {
+  const response = await apiRequest<ApiEnvelope<{ profilePicturePath: string }>>("/user/upload-profile-picture", {
+    method: "POST",
+    body: formOf("profilePicture", [file]),
+    auth: true,
+  });
+  return response.data!.profilePicturePath;
+}
+
+// replaces the whole set
+export async function uploadCoverImages(files: File[]): Promise<string[]> {
+  const response = await apiRequest<ApiEnvelope<{ coverImagesPath: string[] }>>("/user/upload-cover-images", {
+    method: "POST",
+    body: formOf("cover-images", files),
+    auth: true,
+  });
+  return response.data!.coverImagesPath;
+}
+
+// adds to the list; answers with the whole list
+export async function uploadDocuments(files: File[]): Promise<UserDocument[]> {
+  const response = await apiRequest<ApiEnvelope<{ documents: UserDocument[] }>>("/user/documents", {
+    method: "POST",
+    body: formOf("documents", files),
+    auth: true,
+  });
+  return response.data!.documents;
+}
+
+export function deleteDocument(id: string) {
+  return apiRequest(`/user/documents/${id}`, { method: "DELETE", auth: true });
 }

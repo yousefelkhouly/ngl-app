@@ -18,6 +18,8 @@ import { FormError, fieldErrorId } from "@/components/common/form-field";
 import { SubmitButton } from "@/components/common/submit-button";
 import { EmptyState } from "@/components/common/states";
 import { useFieldIds } from "@/hooks/use-field-ids";
+import { usePublicProfile } from "@/hooks/use-profile";
+import { ProfileHeader, ProfileHeaderSkeleton } from "@/components/profile/profile-header";
 
 export function SendView({ receiverId }: { receiverId: string }) {
   const { user: me, isPending: sessionPending } = useSession();
@@ -57,42 +59,83 @@ export function SendView({ receiverId }: { receiverId: string }) {
     );
   }
 
-  const signedIn = Boolean(me);
+  return (
+    <SendToProfile
+      receiverId={receiverId}
+      signedIn={Boolean(me)}
+      signedInAs={me?.name}
+      sessionPending={sessionPending}
+    />
+  );
+}
+
+// who the note is for, above the form. a link to an account that's gone ends here
+function SendToProfile({
+  receiverId,
+  signedIn,
+  signedInAs,
+  sessionPending,
+}: {
+  receiverId: string;
+  signedIn: boolean;
+  signedInAs?: string;
+  sessionPending: boolean;
+}) {
+  const profile = usePublicProfile(receiverId);
+
+  if (profile.error instanceof ApiError && profile.error.status === 404) {
+    return (
+      <EmptyState
+        title="This link doesn't work."
+        action={
+          <Button asChild variant="pop">
+            <Link href="/register">Get your own link</Link>
+          </Button>
+        }
+      >
+        The account it belongs to doesn&apos;t exist anymore.
+      </EmptyState>
+    );
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-16 gap-y-12">
-      <section className="flex min-w-0 flex-[1_1_480px] flex-col gap-6">
-        <h1 className="text-[clamp(3.5rem,9vw,8.5rem)] leading-[0.86] font-extrabold tracking-[-0.045em]">
-          Say it.
-        </h1>
-        <p className="max-w-xl text-xl leading-snug font-semibold sm:text-2xl">
-          {signedIn ? (
-            <>
-              You&apos;ll stay <RedactionBar label="anonymous" className="w-[6em]" /> unless they decide to let you
-              in.
-            </>
-          ) : (
-            <>
-              No account needed. Without one, you stay <RedactionBar label="anonymous" className="w-[6em]" /> for
-              good.
-            </>
+    <div className="flex flex-col gap-12">
+      {/* the form still works if the profile can't load: the header is only a nice-to-have */}
+      {profile.isPending ? <ProfileHeaderSkeleton /> : profile.data && <ProfileHeader profile={profile.data} />}
+      <div className="flex flex-wrap items-center gap-x-16 gap-y-12">
+        <section className="flex min-w-0 flex-[1_1_480px] flex-col gap-6">
+          <h1 className="text-[clamp(3.5rem,9vw,8.5rem)] leading-[0.86] font-extrabold tracking-[-0.045em]">
+            Say it.
+          </h1>
+          <p className="max-w-xl text-xl leading-snug font-semibold sm:text-2xl">
+            {signedIn ? (
+              <>
+                You&apos;ll stay <RedactionBar label="anonymous" className="w-[6em]" /> unless they decide to let you
+                in.
+              </>
+            ) : (
+              <>
+                No account needed. Without one, you stay <RedactionBar label="anonymous" className="w-[6em]" /> for
+                good.
+              </>
+            )}
+          </p>
+        </section>
+        <div className="relative min-w-0 flex-[1_1_400px] sm:max-w-xl">
+          {!sessionPending && !signedIn && (
+            <span
+              aria-hidden="true"
+              className="absolute -top-8 -right-2 z-10 flex size-24 rotate-12 items-center justify-center rounded-full border-2 border-ink bg-highlight text-center font-mono text-[11px] leading-tight font-bold text-ink"
+            >
+              NO
+              <br />
+              ACCOUNT
+              <br />
+              NEEDED
+            </span>
           )}
-        </p>
-      </section>
-      <div className="relative min-w-0 flex-[1_1_400px] sm:max-w-xl">
-        {!sessionPending && !signedIn && (
-          <span
-            aria-hidden="true"
-            className="absolute -top-8 -right-2 z-10 flex size-24 rotate-12 items-center justify-center rounded-full border-2 border-ink bg-highlight text-center font-mono text-[11px] leading-tight font-bold text-ink"
-          >
-            NO
-            <br />
-            ACCOUNT
-            <br />
-            NEEDED
-          </span>
-        )}
-        <SendForm receiverId={receiverId} signedIn={signedIn} signedInAs={me?.name} />
+          <SendForm receiverId={receiverId} signedIn={signedIn} signedInAs={signedInAs} />
+        </div>
       </div>
     </div>
   );

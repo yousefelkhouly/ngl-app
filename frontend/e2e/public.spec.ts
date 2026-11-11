@@ -36,10 +36,10 @@ test("a broken send link and a link to nobody both say so", async ({ page }) => 
   await page.goto("/u/not-a-real-id");
   await expect(page.getByRole("heading", { name: "This link doesn't work." })).toBeVisible();
 
+  // a well-formed id with no account behind it: known before anything is typed
   await page.goto("/u/0123456789abcdef01234567");
-  await page.getByLabel("Your note").filter({ visible: true }).fill("is anyone there?");
-  await page.getByRole("button", { name: "Send it, anonymously" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toHaveText("This link doesn't belong to anyone anymore.");
+  await expect(page.getByRole("heading", { name: "This link doesn't work." })).toBeVisible();
+  await expect(page.getByLabel("Your note")).toHaveCount(0);
 });
 
 test("the API proxy only reaches the backend's /api routes", async ({ request }) => {

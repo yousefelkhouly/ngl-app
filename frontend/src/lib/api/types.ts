@@ -9,6 +9,31 @@ export interface PublicUser {
   profilePicturePath?: string;
 }
 
+// someone's profile as anyone with their link sees it
+export interface PublicProfile {
+  _id: string;
+  name: string;
+  profilePicturePath?: string;
+  coverImagesPath: string[];
+}
+
+// a file in the user's personal information
+export interface UserDocument {
+  _id: string;
+  // the name the file had on the user's device
+  name: string;
+  path: string;
+  mimetype: string;
+  size: number;
+  uploadedAt: string;
+}
+
+// your own profile, from /user/me
+export interface Profile extends PublicProfile {
+  email: string;
+  documents: UserDocument[];
+}
+
 // the logged-in user, read from the access token by /api/auth/session
 export interface SessionUser {
   id: string;

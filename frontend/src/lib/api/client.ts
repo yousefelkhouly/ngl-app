@@ -24,7 +24,7 @@ export interface ApiEnvelope<T = unknown> {
 type RequestBody = Record<string, unknown> | FormData;
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: RequestBody;
   // for routes behind the backend's guard: on a 401 the session is refreshed once and
   // the request retried; if that fails, listeners of onSessionExpired are told

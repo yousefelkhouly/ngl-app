@@ -16,8 +16,14 @@ function swatchFor(id: string): string {
   return SWATCHES[hash % SWATCHES.length];
 }
 
-const sizes = { sm: "size-10 text-sm", md: "size-12 text-base", lg: "size-20 text-2xl" } as const;
-const pixels = { sm: 40, md: 48, lg: 80 } as const;
+const sizes = {
+  sm: "size-10 text-sm",
+  md: "size-12 text-base",
+  lg: "size-20 text-2xl",
+  xl: "size-24 text-3xl sm:size-32 sm:text-4xl",
+} as const;
+// the largest size each one is drawn at
+const pixels = { sm: 40, md: 48, lg: 80, xl: 128 } as const;
 
 export function Avatar({
   id,

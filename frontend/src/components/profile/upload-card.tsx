@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Upload } from "lucide-react";
-import { uploadFiles, type UploadKind } from "@/lib/api/users";
 import { errorMessage } from "@/lib/api/client";
 import { fileProblem } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
@@ -14,21 +13,27 @@ import { PaperNote } from "@/components/brand/paper-note";
 
 // pick → check → upload one kind of file. the backend checks the real type again from the bytes
 export function UploadCard({
-  kind,
   title,
   description,
+  upload,
   allowedTypes,
   accept,
   maxFiles = 1,
   previewImages = false,
+  disabled = false,
+  children,
 }: {
-  kind: UploadKind;
   title: string;
   description: string;
+  upload: (files: File[]) => Promise<unknown>;
   allowedTypes: string[];
   accept: string;
   maxFiles?: number;
   previewImages?: boolean;
+  // e.g. no room for more files; the reason goes in the description or children
+  disabled?: boolean;
+  // shown between the description and the picker, e.g. what's saved already
+  children?: React.ReactNode;
 }) {
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -36,7 +41,7 @@ export function UploadCard({
   const [problem, setProblem] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => uploadFiles(kind, files),
+    mutationFn: () => upload(files),
     onSuccess: () => {
       toast.success(`${title} saved.`);
       setFiles([]);
@@ -73,6 +78,8 @@ export function UploadCard({
         <p className="text-base text-ink-soft">{description}</p>
       </div>
 
+      {children}
+
       <div className="flex flex-wrap items-center gap-3">
         <input
           ref={input}
@@ -80,13 +87,14 @@ export function UploadCard({
           type="file"
           accept={accept}
           multiple={maxFiles > 1}
+          disabled={disabled}
           onChange={(event) => pick(event.target.files)}
           className="peer sr-only"
         />
         {/* the label is the visible control, the real input stays keyboard-focusable */}
         <label
           htmlFor={inputId}
-          className="inline-flex h-11 cursor-pointer items-center rounded-full border-2 border-ink bg-paper px-4 text-sm font-bold text-ink shadow-hard-sm peer-focus-visible:outline-3 peer-focus-visible:outline-offset-3 peer-focus-visible:outline-ink"
+          className="inline-flex h-11 cursor-pointer items-center peer-disabled:cursor-not-allowed peer-disabled:opacity-50 rounded-full border-2 border-ink bg-paper px-4 text-sm font-bold text-ink shadow-hard-sm peer-focus-visible:outline-3 peer-focus-visible:outline-offset-3 peer-focus-visible:outline-ink"
         >
           {maxFiles > 1 ? "Choose files" : "Choose a file"}
         </label>
@@ -108,7 +116,7 @@ export function UploadCard({
       <FormError message={problem ?? (mutation.error ? errorMessage(mutation.error) : null)} />
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="default" size="sm" onClick={() => mutation.mutate()} disabled={files.length === 0 || mutation.isPending}>
+        <Button variant="default" size="sm" onClick={() => mutation.mutate()} disabled={disabled || files.length === 0 || mutation.isPending}>
           <Upload aria-hidden="true" /> {mutation.isPending ? "Uploading…" : "Upload"}
         </Button>
         {mutation.isSuccess && (

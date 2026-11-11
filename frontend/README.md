@@ -66,8 +66,5 @@ e2e/              Playwright specs and support (fixtures, email stub, database c
 
 ## Known limits (backend side)
 
-- Share links use the user id (`/u/<id>`): there are no usernames, and the send page can't show the
-  receiver's name because the API has no public profile endpoint.
-- The backend doesn't return uploaded file paths for the signed-in user, so the profile page can't show
-  your current picture, cover images or CV (others see your picture in chats).
+- Share links use the user id (`/u/<id>`): there are no usernames.
 - No live updates: chats poll every 4 s while open, the inbox every 30 s.
