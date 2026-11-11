@@ -57,6 +57,14 @@ function DocumentIcon({ mimetype }: { mimetype: string }) {
   return <FileText aria-hidden="true" className={className} />;
 }
 
+// on the hosted site files live on Cloudinary: another origin, where browsers ignore
+// the download attribute, so those links open in a new tab instead of leaving the app
+function linkProps(document: UserDocument) {
+  return document.path.startsWith("/")
+    ? { href: document.path, download: document.name }
+    : { href: document.path, target: "_blank", rel: "noopener noreferrer" };
+}
+
 function DocumentRow({ document }: { document: UserDocument }) {
   const remove = useDeleteDocument();
   // deleting takes two clicks: the first only asks
@@ -77,10 +85,9 @@ function DocumentRow({ document }: { document: UserDocument }) {
     <li className="flex flex-wrap items-center gap-3 p-3">
       <DocumentIcon mimetype={document.mimetype} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* same origin through the /uploads proxy, so the browser keeps the original name */}
+        {/* locally: same origin through the /uploads proxy, so the browser keeps the original name */}
         <a
-          href={document.path}
-          download={document.name}
+          {...linkProps(document)}
           className="truncate font-bold underline decoration-2 underline-offset-4 hover:decoration-pop"
         >
           {/* isolated, so a right-to-left name (Arabic, Hebrew) keeps its extension on the correct side */}
@@ -92,7 +99,7 @@ function DocumentRow({ document }: { document: UserDocument }) {
       </div>
       <div className="flex items-center gap-2">
         <Button asChild variant="ghost" size="icon-sm">
-          <a href={document.path} download={document.name} aria-label={`Download ${document.name}`}>
+          <a {...linkProps(document)} aria-label={`Download ${document.name}`}>
             <Download aria-hidden="true" />
           </a>
         </Button>

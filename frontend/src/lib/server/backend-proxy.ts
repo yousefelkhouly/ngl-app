@@ -22,6 +22,17 @@ const HOP_BY_HOP = [
   "content-length",
 ];
 
+// shared with the backend (its PROXY_SECRET): with it, the backend trusts X-Client-IP below and
+// rate-limits each visitor on their own instead of everyone as this server
+const proxySecret = process.env.PROXY_SECRET;
+
+// the visitor's address. only trustworthy where the platform in front of this app overwrites these
+// headers (Vercel does), which is the only place PROXY_SECRET should be set
+function visitorIp(request: NextRequest): string | null {
+  const forwarded = request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0];
+  return forwarded?.trim() || null;
+}
+
 export function backendUrlFor(path: string): string {
   return `${backendUrl}${path}`;
 }
@@ -39,6 +50,14 @@ export async function proxyToBackend(request: NextRequest, path: string): Promis
   const target = backendUrlFor(path) + request.nextUrl.search;
   const headers = new Headers(request.headers);
   for (const name of HOP_BY_HOP) headers.delete(name);
+  // only this server may set these, never the browser
+  headers.delete("x-client-ip");
+  headers.delete("x-proxy-secret");
+  const ip = proxySecret ? visitorIp(request) : null;
+  if (proxySecret && ip) {
+    headers.set("x-client-ip", ip);
+    headers.set("x-proxy-secret", proxySecret);
+  }
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   let response: Response;

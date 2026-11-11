@@ -6,6 +6,7 @@ import { handleError } from "./lib/errors/error-handle.js";
 import { router } from "./routes.js";
 import { correlationId } from "./pkg/correlation/correlation.js";
 import { globalLimiter } from "./lib/security/rate-limit.js";
+import { clientIp } from "./lib/security/client-ip.js";
 import { AppError } from "./lib/errors/appError.js";
 import { UPLOADS_DIR } from "./pkg/media/multer.js";
 
@@ -23,6 +24,7 @@ export function createApp() {
   // credentials: the browser only sends the auth cookies when this is on
   app.use(cors({ origin: env.clientUrls, credentials: true }));
 
+  app.use(clientIp);
   app.use(globalLimiter);
 
   // nosniff: the browser uses the content-type from the extension

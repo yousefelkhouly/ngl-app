@@ -4,13 +4,11 @@ export class RedisCacheProvider {
   client;
 
   constructor(config) {
-    this.client = new Redis({
-      host: config.host,
-      port: config.port,
-      password: config.password,
-      lazyConnect: true,
-      maxLoadingRetryTime: 3,
-    });
+    const options = { lazyConnect: true, maxLoadingRetryTime: 3 };
+    // a URL (hosted Redis) carries host, port, password and, with rediss://, TLS
+    this.client = config.url
+      ? new Redis(config.url, options)
+      : new Redis({ host: config.host, port: config.port, password: config.password, ...options });
     this.client.on("error", (err) => console.log("Redis error", err.message));
     this.client
       .connect()

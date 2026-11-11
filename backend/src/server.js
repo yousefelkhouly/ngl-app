@@ -12,9 +12,9 @@ async function start() {
   // not awaited: a mail outage shouldn't stop the app, but it should show up right away
   emailProvider
     .verify()
-    .then(() => logger.info("email: logged in to the SMTP server"))
+    .then(() => logger.info("email: ready to send"))
     .catch((error) =>
-      logger.error("email: can't log in to the SMTP server, codes won't be sent", {
+      logger.error("email: can't reach the email service, codes won't be sent", {
         stack: error.stack,
       }),
     );

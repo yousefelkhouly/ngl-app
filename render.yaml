@@ -1,0 +1,40 @@
+# Render blueprint for the backend (Dashboard → New → Blueprint → pick this repo).
+# values marked sync: false are asked for when the blueprint is created; see DEPLOY.md
+services:
+  - type: web
+    name: unsaid-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # secure cookies
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      # copy the generated value into Vercel's PROXY_SECRET too
+      - key: PROXY_SECRET
+        generateValue: true
+      - key: MONGODB_URL
+        sync: false
+      # Upstash: rediss://default:<password>@<host>:6379
+      - key: REDIS_URL
+        sync: false
+      # Cloudinary: cloudinary://<api key>:<api secret>@<cloud name>
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      # the sender address verified in Brevo
+      - key: MAIL_USER
+        sync: false
+      # the Vercel address, e.g. https://unsaid.vercel.app
+      - key: CLIENT_URL
+        sync: false
