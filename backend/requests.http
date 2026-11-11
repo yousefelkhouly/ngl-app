@@ -99,3 +99,17 @@ POST {{base}}/conversation/<conversation id>/messages
 Content-Type: application/json
 
 { "content": "ok" }
+
+### ---------- profile ----------
+
+### your profile: picture, cover images and documents (logged in)
+GET {{base}}/user/me
+
+### someone's public profile: name, picture and cover images only
+GET {{base}}/user/<user id>
+
+### uploads (logged in) are multipart; easiest from the app or with curl:
+### curl -b cookies.txt -F "documents=@notes.pdf" {{base}}/user/documents
+
+### delete one of your documents
+DELETE {{base}}/user/documents/<document id>

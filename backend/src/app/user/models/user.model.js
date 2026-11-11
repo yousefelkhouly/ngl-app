@@ -1,6 +1,20 @@
 import { model, Schema } from "mongoose";
 
 export const NAME_MAX_LENGTH = 20;
+export const MAX_DOCUMENTS = 10;
+export const DOCUMENT_NAME_MAX_LENGTH = 120;
+
+const documentSchema = new Schema(
+  {
+    // the name the user's file had, only for showing and downloading:
+    // the saved file is always named by the server
+    name: { type: String, required: true, maxLength: DOCUMENT_NAME_MAX_LENGTH },
+    path: { type: String, required: true },
+    mimetype: { type: String, required: true },
+    size: { type: Number, required: true },
+  },
+  { timestamps: { createdAt: "uploadedAt", updatedAt: false } },
+);
 
 const userSchema = new Schema(
   {
@@ -45,7 +59,11 @@ const userSchema = new Schema(
     },
     profilePicturePath: String,
     coverImagesPath: [String],
-    cvPath: String,
+    // personal information: files the user keeps on their profile
+    documents: {
+      type: [documentSchema],
+      default: [],
+    },
     twoStepVerification: {
       type: Boolean,
       default: false,

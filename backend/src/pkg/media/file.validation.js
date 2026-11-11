@@ -12,6 +12,14 @@ export const allowedFields = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ],
+  // personal information: the document types plus plain text, Excel and PowerPoint
+  personalDocument: [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+  ],
   video: ["video/mp4"],
   // file-type reports mp3 files as audio/mpeg
   audio: ["audio/mpeg"],
@@ -24,6 +32,9 @@ export const EXTENSIONS = {
   "image/png": ".png",
   "application/pdf": ".pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+  "text/plain": ".txt",
   "video/mp4": ".mp4",
   "audio/mpeg": ".mp3",
 };
@@ -33,11 +44,27 @@ export const EXTENSIONS = {
 // it must match the claimed one, because the extension was picked from the claim
 async function hasAllowedType(file, allowedMimeTypes) {
   const type = await fileTypeFromFile(file.path);
+  // plain text has no signature for file-type to find, so it's checked by content instead
+  if (!type && file.mimetype === "text/plain") {
+    return allowedMimeTypes.includes("text/plain") && (await isPlainText(file.path));
+  }
   return (
     Boolean(type) &&
     type.mime === file.mimetype &&
     allowedMimeTypes.includes(type.mime)
   );
+}
+
+// valid UTF-8 with no NUL bytes: binary files nearly always have one
+async function isPlainText(path) {
+  const bytes = await fs.readFile(path);
+  if (bytes.includes(0)) return false;
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function removeFiles(files) {
