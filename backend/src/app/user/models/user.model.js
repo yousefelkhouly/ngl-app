@@ -25,6 +25,15 @@ const userSchema = new Schema(
       maxLength: NAME_MAX_LENGTH,
       trim: true,
     },
+    // the public handle in share links (/u/<username>). sparse: accounts made before usernames
+    // get one the first time they open their profile
+    username: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      lowercase: true,
+    },
     email: {
       type: String,
       unique: true,
@@ -67,6 +76,11 @@ const userSchema = new Schema(
     twoStepVerification: {
       type: Boolean,
       default: false,
+    },
+    // people this user blocked: they can't send them notes or chat messages
+    blockedUsers: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
     },
   },
   {

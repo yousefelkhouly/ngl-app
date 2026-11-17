@@ -2,3 +2,6 @@
 node_modules
 # files users upload, created at runtime
 uploads/
+
+# browser screenshots and snapshots from manual walkthroughs
+.playwright-mcp/

@@ -1,4 +1,4 @@
-import { createUser, expect, signIn, test } from "./fixtures";
+import { createUser, expect, latestCode, mailCount, signIn, test } from "./fixtures";
 
 test("an expired access token is renewed with the refresh token, invisibly", async ({ page, context, request }) => {
   const user = await createUser(request);
@@ -48,4 +48,37 @@ test("a used refresh token can't be replayed", async ({ context, request }) => {
     headers: { cookie: `refresh_token=${refresh.value}` },
   });
   expect(replay.status()).toBe(401);
+});
+
+test("a password reset signs out other devices straight away, not 15 minutes later", async ({ context, request }) => {
+  const user = await createUser(request);
+  await signIn(context, user);
+  expect((await context.request.get("/api/user/me")).status()).toBe(200);
+
+  const before = mailCount(user.email);
+  expect((await request.post("/api/auth/send-otp", { data: { email: user.email } })).status()).toBe(200);
+  await expect.poll(() => mailCount(user.email)).toBeGreaterThan(before);
+  const reset = await request.patch("/api/auth/reset-password", {
+    data: { email: user.email, code: await latestCode(user.email), newPassword: "after-reset-pw" },
+  });
+  expect(reset.status()).toBe(200);
+
+  // the access token this device still holds is refused, and so is its refresh token
+  expect((await context.request.get("/api/user/me")).status()).toBe(401);
+  expect((await context.request.post("/api/auth/refresh")).status()).toBe(401);
+});
+
+test("an open chat can poll for a whole 15-minute window without being rate limited", async ({ context, request }) => {
+  const user = await createUser(request);
+  await signIn(context, user);
+  // a chat checks every 4 seconds: 225 reads in 15 minutes. the old shared limit was 100
+  for (let i = 0; i < 230; i += 1) {
+    const response = await context.request.get("/api/conversation");
+    expect(response.status(), `read ${i + 1}`).toBe(200);
+  }
+  // writes have their own counter, so sending still works
+  const send = await context.request.post("/api/message/public", {
+    data: { content: "still allowed", receiver: (await createUser(request)).id },
+  });
+  expect(send.status()).toBe(201);
 });

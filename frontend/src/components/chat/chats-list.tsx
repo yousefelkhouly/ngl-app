@@ -16,7 +16,7 @@ export function ChatsList() {
   const prefetch = usePrefetch();
 
   return (
-    <AppPage title="Chats" description="People you chose to unredact.">
+    <AppPage title="Chats" description="Everyone you're talking to: people you unredacted, and people who unredacted you.">
       {isPending ? (
         <NotesSkeleton count={3} />
       ) : isError ? (
@@ -30,7 +30,7 @@ export function ChatsList() {
             </Button>
           }
         >
-          A chat opens when you unredact someone in your inbox.
+          A chat opens when you unredact someone in your inbox, or when someone you sent a note to unredacts you.
         </EmptyState>
       ) : (
         <ul className="paper divide-y-2 divide-ink overflow-hidden shadow-hard">

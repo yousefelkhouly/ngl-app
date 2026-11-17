@@ -34,3 +34,11 @@ export const invalidRefreshToken = new AppError(
   "invalid or expired refresh token",
   401,
 );
+
+export const twoStepAlreadyInState = (enabled) =>
+  new AppError(`2 step verification is already ${enabled ? "on" : "off"}`, 409);
+
+// 403, not 401: the app reads a 401 as "session expired" and signs the user out
+export const wrongPassword = new AppError("your current password isn't right", 403);
+export const sameEmail = new AppError("that's already your email", 400);
+export const noEmailChangePending = new AppError("that code expired, ask for a new one", 404);

@@ -31,7 +31,10 @@ export function ProfileHeader({
         {/* basis: on a narrow screen the actions wrap under the name instead of squeezing it */}
         <div className="flex min-w-0 grow basis-52 flex-col gap-1 pt-3">
           <p className="truncate text-3xl font-extrabold tracking-tight">{profile.name}</p>
-          {details}
+          {details ??
+            (profile.username && (
+              <p className="truncate font-mono text-sm font-bold text-ink-soft">@{profile.username}</p>
+            ))}
         </div>
         {actions}
       </div>

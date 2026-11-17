@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  blockConversation,
   getConversation,
   getConversations,
   sendConversationMessage,
@@ -98,5 +99,19 @@ export function useSendChatMessage(conversationId: string, myId: string) {
         queryClient.invalidateQueries({ queryKey: key }),
         queryClient.invalidateQueries({ queryKey: queryKeys.conversations, exact: true }),
       ]),
+  });
+}
+
+export function useBlockConversation(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => blockConversation(conversationId),
+    onSuccess: async () => {
+      queryClient.setQueryData<Conversation[]>(queryKeys.conversations, (conversations) =>
+        conversations?.filter((conversation) => conversation._id !== conversationId),
+      );
+      queryClient.removeQueries({ queryKey: queryKeys.conversation(conversationId), exact: true });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.profile });
+    },
   });
 }

@@ -43,3 +43,19 @@ export async function declineRequest(requestId: string): Promise<DeclineResult> 
   );
   return response.data as DeclineResult;
 }
+
+export type ReportReason = "harassment" | "hate" | "threat" | "spam" | "other";
+
+// these act on notes in your own inbox, and take them out of it
+export function deleteNote(messageId: string) {
+  return apiRequest(`/message/${messageId}`, { method: "DELETE", auth: true });
+}
+
+// blocks whoever sent it without saying who; only for notes sent with an account
+export function blockNoteSender(messageId: string) {
+  return apiRequest(`/message/${messageId}/block`, { method: "POST", auth: true });
+}
+
+export function reportNote(messageId: string, reason: ReportReason) {
+  return apiRequest(`/message/${messageId}/report`, { method: "POST", body: { reason }, auth: true });
+}

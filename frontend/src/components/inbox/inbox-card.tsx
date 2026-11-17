@@ -4,7 +4,7 @@ import { Suspense, useLayoutEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { AnimatePresence, m } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Ellipsis } from "lucide-react";
 import { cn } from "cn";
 import type { InboxMessage } from "@/lib/api/types";
 import { timeAgo } from "@/lib/format";
@@ -18,6 +18,7 @@ import { PaperNote, tiltFor } from "@/components/brand/paper-note";
 const loadDialogs = () => import("./answer-dialogs");
 const RevealDialog = dynamic(() => loadDialogs().then((module) => module.RevealDialog));
 const DeclineDialog = dynamic(() => loadDialogs().then((module) => module.DeclineDialog));
+const NoteActionsDialog = dynamic(() => loadDialogs().then((module) => module.NoteActionsDialog));
 const preloadDialogs = prefetchOnIntent(loadDialogs);
 
 // who it's from: a censor bar until revealed, then the name in highlighter
@@ -63,7 +64,7 @@ export function InboxCard({
   index: number;
   chatId: string | null;
 }) {
-  const [dialog, setDialog] = useState<"reveal" | "decline" | null>(null);
+  const [dialog, setDialog] = useState<"reveal" | "decline" | "actions" | null>(null);
   // a dialog left open shouldn't still be open when coming back to the inbox
   useLayoutEffect(() => () => setDialog(null), []);
   const prefetch = usePrefetch();
@@ -80,9 +81,21 @@ export function InboxCard({
         {message.content}
       </p>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <time dateTime={message.createdAt} className="font-mono text-xs font-bold text-ink-soft uppercase">
-          {timeAgo(message.createdAt)}
-        </time>
+        <div className="flex items-center gap-1">
+          <time dateTime={message.createdAt} className="font-mono text-xs font-bold text-ink-soft uppercase">
+            {timeAgo(message.createdAt)}
+          </time>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Delete, block or report"
+            title="Delete, block or report"
+            {...preloadDialogs}
+            onClick={() => setDialog("actions")}
+          >
+            <Ellipsis aria-hidden="true" />
+          </Button>
+        </div>
 
         {status === "pending" && (
           <div className="flex flex-wrap gap-2">
@@ -114,6 +127,9 @@ export function InboxCard({
         )}
         {message.request && dialog === "decline" && (
           <DeclineDialog message={message} open onOpenChange={(open) => setDialog(open ? "decline" : null)} />
+        )}
+        {dialog === "actions" && (
+          <NoteActionsDialog message={message} open onOpenChange={(open) => setDialog(open ? "actions" : null)} />
         )}
       </Suspense>
     </PaperNote>

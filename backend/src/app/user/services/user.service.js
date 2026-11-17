@@ -1,5 +1,6 @@
 import * as userRepository from "../repositories/user.repository.js";
-import { documentNotFound, tooManyDocuments, userNotExist } from "../errors.js";
+import { documentNotFound, tooManyDocuments, usernameTaken, userNotExist } from "../errors.js";
+import { generateUsername, isUsernameTaken } from "../utils/username.js";
 import { DOCUMENT_NAME_MAX_LENGTH, MAX_DOCUMENTS } from "../models/user.model.js";
 import { storage } from "../../../lib/media/init.js";
 import { discardUploads } from "../../../pkg/media/storage.js";
@@ -33,13 +34,52 @@ async function replaceUserFiles(userId, field, files, toValue) {
 }
 
 export async function getProfile(userId) {
-  const user = await userRepository.findProfileById(userId);
+  let user = await userRepository.findProfileById(userId);
   if (!user) throw userNotExist;
-  return user;
+  if (!user.username) {
+    await userRepository.ensureUsername(userId, () => generateUsername(user.name));
+    user = await userRepository.findProfileById(userId);
+  }
+  const hasPassword = Boolean(user.password);
+  // toJSON drops the password itself
+  const { blockedUsers, ...profile } = user.toJSON();
+  return { ...profile, hasPassword, blockedCount: blockedUsers?.length ?? 0 };
 }
 
-export async function getPublicProfile(userId) {
-  const user = await userRepository.findPublicProfileById(userId);
+export async function updateProfile(userId, changes) {
+  // checked first for a clear answer; the unique index still decides between two at once
+  if (changes.username && (await isUsernameTaken(changes.username, userId))) throw usernameTaken;
+  const updated = await userRepository.updateNameAndUsername(userId, changes);
+  if (updated) return { name: updated.name, username: updated.username };
+  if (!(await userRepository.findUserById(userId))) throw userNotExist;
+  throw usernameTaken;
+}
+
+// takes the picture off and deletes the file
+export async function removeProfilePicture(userId) {
+  const before = await userRepository.replaceUserField(userId, "profilePicturePath", null);
+  if (!before) throw userNotExist;
+  if (before.profilePicturePath) await storage.remove([before.profilePicturePath]);
+  return { profilePicturePath: null };
+}
+
+export async function removeCoverImages(userId) {
+  const before = await userRepository.replaceUserField(userId, "coverImagesPath", []);
+  if (!before) throw userNotExist;
+  await storage.remove(before.coverImagesPath ?? []);
+  return { coverImagesPath: [] };
+}
+
+export async function unblockEveryone(userId) {
+  await userRepository.unblockEveryone(userId);
+  return { blockedCount: 0 };
+}
+
+// share links use the username; links made before usernames use the account id
+export async function getPublicProfile(handle) {
+  const user = /^[0-9a-f]{24}$/.test(handle)
+    ? await userRepository.findPublicProfileById(handle)
+    : await userRepository.findPublicProfileByUsername(handle);
   if (!user) throw userNotExist;
   return user;
 }

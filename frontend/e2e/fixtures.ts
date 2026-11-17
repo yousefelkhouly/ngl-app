@@ -13,6 +13,7 @@ export { expect };
 
 export interface TestUser {
   id: string;
+  username: string;
   name: string;
   email: string;
   password: string;
@@ -42,7 +43,7 @@ export function mailCount(email: string): number {
     .filter((line) => line && (JSON.parse(line) as { to: string }).to === email).length;
 }
 
-export function newUserDetails(prefix = "user"): Omit<TestUser, "id"> {
+export function newUserDetails(prefix = "user"): Omit<TestUser, "id" | "username"> {
   const tag = randomUUID().slice(0, 8);
   return {
     name: `${prefix}${tag.slice(0, 4)}`,
@@ -56,15 +57,16 @@ export async function createUser(request: APIRequestContext, prefix = "user"): P
   const details = newUserDetails(prefix);
   const response = await request.post("/api/auth/register", { data: details });
   expect(response.status(), await response.text()).toBe(201);
-  const { data } = (await response.json()) as { data: { _id: string } };
+  const { data } = (await response.json()) as { data: { _id: string; username: string } };
   const verify = await request.patch("/api/auth/verify-account", {
     data: { email: details.email, code: await latestCode(details.email) },
   });
   expect(verify.status()).toBe(200);
-  return { ...details, id: data._id };
+  return { ...details, id: data._id, username: data.username };
 }
 
-// signs the browser context in, the same way the UI does: password, then the emailed code
+// signs the browser context in, the same way the UI does: the password, then the emailed
+// code if the account has 2-step verification on
 export async function signIn(context: BrowserContext, user: TestUser) {
   const before = mailCount(user.email);
   const login = await context.request.post("/api/auth/login", {
@@ -72,12 +74,25 @@ export async function signIn(context: BrowserContext, user: TestUser) {
   });
   expect(login.status()).toBe(200);
   const { twoStepEnabled } = (await login.json()) as { twoStepEnabled: boolean };
+  if (!twoStepEnabled) return;
+
   await expect.poll(() => mailCount(user.email)).toBeGreaterThan(before);
-  const code = await latestCode(user.email);
-  const verify = twoStepEnabled
-    ? await context.request.post("/api/auth/verify-code-to-login", { data: { email: user.email, code } })
-    : await context.request.patch("/api/auth/enable-2-step-verification", { data: { email: user.email, code } });
+  const verify = await context.request.post("/api/auth/verify-code-to-login", {
+    data: { email: user.email, code: await latestCode(user.email) },
+  });
   expect(verify.status()).toBe(200);
+}
+
+// turns 2-step verification on through the API, from a signed-in context
+export async function enableTwoStep(context: BrowserContext, user: TestUser) {
+  const before = mailCount(user.email);
+  const ask = await context.request.post("/api/auth/two-step/code", { data: { enabled: true } });
+  expect(ask.status(), await ask.text()).toBe(200);
+  await expect.poll(() => mailCount(user.email)).toBeGreaterThan(before);
+  const confirm = await context.request.patch("/api/auth/two-step", {
+    data: { enabled: true, code: await latestCode(user.email) },
+  });
+  expect(confirm.status(), await confirm.text()).toBe(200);
 }
 
 // fails the test on any console error or uncaught exception. a 4xx from the API is logged

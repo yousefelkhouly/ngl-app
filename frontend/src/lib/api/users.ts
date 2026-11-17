@@ -51,3 +51,24 @@ export async function uploadDocuments(files: File[]): Promise<UserDocument[]> {
 export function deleteDocument(id: string) {
   return apiRequest(`/user/documents/${id}`, { method: "DELETE", auth: true });
 }
+
+export function unblockEveryone() {
+  return apiRequest("/user/blocked", { method: "DELETE", auth: true });
+}
+
+export async function updateProfile(changes: { name?: string; username?: string }) {
+  const response = await apiRequest<ApiEnvelope<{ name: string; username: string }>>("/user/me", {
+    method: "PATCH",
+    body: changes,
+    auth: true,
+  });
+  return response.data!;
+}
+
+export function removeProfilePicture() {
+  return apiRequest("/user/profile-picture", { method: "DELETE", auth: true });
+}
+
+export function removeCoverImages() {
+  return apiRequest("/user/cover-images", { method: "DELETE", auth: true });
+}

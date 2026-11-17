@@ -1,11 +1,17 @@
 import { validateDTO } from "../../../lib/validation/validation.js";
 import {
+  changeEmailDTO,
+  changePasswordDTO,
+  codeDTO,
+  deleteAccountDTO,
   emailCodeDTO,
   googleLoginDTO,
   loginDTO,
   registerDTO,
   resetPasswordDTO,
   sendOtpDTO,
+  setTwoStepDTO,
+  twoStepCodeDTO,
 } from "../dto/auth.dto.js";
 import * as authService from "../services/auth.service.js";
 import { clearAuthCookies, setAuthCookies } from "../utils/cookies.js";
@@ -27,7 +33,9 @@ export async function register(req, res, next) {
 export async function verifyAccount(req, res, next) {
   try {
     const { email, code } = validateDTO(emailCodeDTO, req.body);
-    await authService.verifyAccount(email, code);
+    // verifying signs the new user in
+    const tokens = await authService.verifyAccount(email, code);
+    setAuthCookies(res, tokens);
     res.json({
       message: "account verified successfully",
       success: true,
@@ -67,14 +75,14 @@ export async function resetPassword(req, res, next) {
 export async function login(req, res, next) {
   try {
     const { email, password } = validateDTO(loginDTO, req.body);
+    const { twoStepEnabled, tokens } = await authService.login(email, password);
 
-    // login never issues tokens: it always emails a code
-    const { twoStepEnabled } = await authService.login(email, password);
-
+    // without 2-step verification the user is signed in now; with it, a code was emailed
+    if (tokens) setAuthCookies(res, tokens);
     res.json({
       message: twoStepEnabled
         ? "verification code sent to your email, use it on /verify-code-to-login to log in"
-        : "2 step verification is not enabled, code sent to your email, use it on /enable-2-step-verification",
+        : "user login successfully",
       success: true,
       twoStepEnabled,
     });
@@ -97,14 +105,27 @@ export async function verifyCodeToLogin(req, res, next) {
   }
 }
 
-export async function enable2StepVerification(req, res, next) {
+export async function sendTwoStepCode(req, res, next) {
   try {
-    const { email, code } = validateDTO(emailCodeDTO, req.body);
-    const tokens = await authService.enable2StepVerification(email, code);
-    setAuthCookies(res, tokens);
+    const { enabled } = validateDTO(twoStepCodeDTO, req.body);
+    await authService.sendTwoStepCode(req.user.id, enabled);
     res.json({
-      message: "Two-step verification enabled and user logged in successfully",
+      message: "code sent to your email",
       success: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function setTwoStepVerification(req, res, next) {
+  try {
+    const { enabled, code } = validateDTO(setTwoStepDTO, req.body);
+    const data = await authService.setTwoStepVerification(req.user.id, enabled, code);
+    res.json({
+      message: enabled ? "2 step verification is on" : "2 step verification is off",
+      success: true,
+      data,
     });
   } catch (error) {
     next(error);
@@ -146,6 +167,53 @@ export async function logout(req, res, next) {
       message: "user logout successfully",
       success: true,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = validateDTO(changePasswordDTO, req.body);
+    const tokens = await authService.changePassword(req.user.id, currentPassword, newPassword);
+    setAuthCookies(res, tokens);
+    res.json({ message: "password changed, other devices are signed out", success: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function requestEmailChange(req, res, next) {
+  try {
+    const { email } = validateDTO(changeEmailDTO, req.body);
+    const data = await authService.requestEmailChange(req.user.id, email);
+    res.json({ message: "code sent to the new email", success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function confirmEmailChange(req, res, next) {
+  try {
+    const { code } = validateDTO(codeDTO, req.body);
+    const { email, tokens } = await authService.confirmEmailChange(
+      req.user.id,
+      code,
+      req.cookies.refresh_token,
+    );
+    setAuthCookies(res, tokens);
+    res.json({ message: "email changed", success: true, data: { email } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteAccount(req, res, next) {
+  try {
+    const { password } = validateDTO(deleteAccountDTO, req.body ?? {});
+    await authService.deleteAccount(req.user.id, password);
+    clearAuthCookies(res);
+    res.json({ message: "account deleted", success: true });
   } catch (error) {
     next(error);
   }

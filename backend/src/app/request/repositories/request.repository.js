@@ -29,3 +29,29 @@ export async function answerPendingRequest(requestId, receiverId, status) {
     { returnDocument: "after" },
   );
 }
+
+// a note that's removed shouldn't leave its request waiting to be answered
+export async function declinePendingForMessage(messageId) {
+  return Request.updateMany(
+    { messageId, status: REQUEST_STATUS.pending },
+    { status: REQUEST_STATUS.declined },
+  );
+}
+
+export async function declinePendingFrom(senderId, receiverId) {
+  return Request.updateMany(
+    { senderOfRequest: senderId, receiverOfRequest: receiverId, status: REQUEST_STATUS.pending },
+    { status: REQUEST_STATUS.declined },
+  );
+}
+
+// a deleted account: nothing it sent or received can still be answered
+export async function declineAllPendingFor(userId) {
+  return Request.updateMany(
+    {
+      status: REQUEST_STATUS.pending,
+      $or: [{ senderOfRequest: userId }, { receiverOfRequest: userId }],
+    },
+    { status: REQUEST_STATUS.declined },
+  );
+}

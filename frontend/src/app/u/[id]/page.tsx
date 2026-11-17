@@ -18,7 +18,7 @@ export default function Page({ params }: PageProps<"/u/[id]">) {
       <main className="flex-1 px-4 pt-6 pb-20 sm:px-8 lg:px-14 lg:pt-12">
         <Suspense fallback={<NotesSkeleton count={1} className="mx-auto max-w-xl" />}>
           {params.then(({ id }) => (
-            <SendView receiverId={id} />
+            <SendView handle={id} />
           ))}
         </Suspense>
       </main>

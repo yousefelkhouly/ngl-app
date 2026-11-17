@@ -16,7 +16,7 @@ Content-Type: application/json
   "password": "123456"
 }
 
-### verify account with the code from register or /send-otp
+### verify account with the code from register or /send-otp (also logs you in)
 PATCH {{base}}/auth/verify-account
 Content-Type: application/json
 
@@ -36,23 +36,55 @@ Content-Type: application/json
 
 ### ---------- login ----------
 
-### login (always emails a login code, never returns tokens)
+### login (2FA off: logs you in. 2FA on: emails a login code instead)
 POST {{base}}/auth/login
 Content-Type: application/json
 
 { "email": "{{email}}", "password": "123456" }
-
-### 2FA off: turn it on with the login code (also logs you in)
-PATCH {{base}}/auth/enable-2-step-verification
-Content-Type: application/json
-
-{ "email": "{{email}}", "code": "123456" }
 
 ### 2FA on: log in with the login code
 POST {{base}}/auth/verify-code-to-login
 Content-Type: application/json
 
 { "email": "{{email}}", "code": "123456" }
+
+### signed in: email a code to turn 2FA on (or off, with "enabled": false)
+POST {{base}}/auth/two-step/code
+Content-Type: application/json
+
+{ "enabled": true }
+
+### signed in: confirm with that code
+PATCH {{base}}/auth/two-step
+Content-Type: application/json
+
+{ "enabled": true, "code": "123456" }
+
+### ---------- account settings (logged in) ----------
+
+### change password (signs out other devices). Google accounts without one leave out currentPassword
+PATCH {{base}}/auth/password
+Content-Type: application/json
+
+{ "currentPassword": "123456", "newPassword": "1234567" }
+
+### change email: a code goes to the new address
+POST {{base}}/auth/email/code
+Content-Type: application/json
+
+{ "email": "new@example.com" }
+
+### ...then confirm with it
+PATCH {{base}}/auth/email
+Content-Type: application/json
+
+{ "code": "123456" }
+
+### delete the account (password required if it has one)
+DELETE {{base}}/auth/account
+Content-Type: application/json
+
+{ "password": "123456" }
 
 ### new tokens from the refresh cookie
 POST {{base}}/auth/refresh
@@ -78,6 +110,18 @@ Content-Type: application/json
 ### and sender stays null until you accept its request
 GET {{base}}/message/public
 
+### delete a note from your inbox
+DELETE {{base}}/message/<message id>
+
+### block whoever sent a note (only notes sent while logged in); hides all their notes
+POST {{base}}/message/<message id>/block
+
+### report a note: harassment, hate, threat, spam or other. also removes it from your inbox
+POST {{base}}/message/<message id>/report
+Content-Type: application/json
+
+{ "reason": "harassment" }
+
 ### ---------- requests (logged in, as the receiver) ----------
 
 ### accept: reveals the sender and opens a conversation
@@ -100,13 +144,32 @@ Content-Type: application/json
 
 { "content": "ok" }
 
+### block the other person: they can't message you, and the chat leaves your list
+POST {{base}}/conversation/<conversation id>/block
+
 ### ---------- profile ----------
 
-### your profile: picture, cover images and documents (logged in)
+### your profile: picture, cover images, documents, 2FA setting, how many you blocked (logged in)
 GET {{base}}/user/me
 
-### someone's public profile: name, picture and cover images only
-GET {{base}}/user/<user id>
+### unblock everyone you blocked
+DELETE {{base}}/user/blocked
+
+### someone's public profile: name, username, picture and cover images only.
+### by username (share links) or by account id (older links)
+GET {{base}}/user/<username or user id>
+
+### change your name and/or username
+PATCH {{base}}/user/me
+Content-Type: application/json
+
+{ "name": "maya", "username": "maya.k" }
+
+### remove your profile picture / cover images
+DELETE {{base}}/user/profile-picture
+
+###
+DELETE {{base}}/user/cover-images
 
 ### uploads (logged in) are multipart; easiest from the app or with curl:
 ### curl -b cookies.txt -F "documents=@notes.pdf" {{base}}/user/documents

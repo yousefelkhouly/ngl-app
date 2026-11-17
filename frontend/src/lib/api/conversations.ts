@@ -24,3 +24,8 @@ export async function sendConversationMessage(id: string, content: string): Prom
   });
   return response.data as SentMessage;
 }
+
+// the other person can't message you any more, and the chat leaves your list
+export function blockConversation(id: string) {
+  return apiRequest(`/conversation/${id}/block`, { method: "POST", auth: true });
+}

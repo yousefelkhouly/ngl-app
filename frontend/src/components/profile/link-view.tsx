@@ -2,7 +2,8 @@
 
 import { Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
-import { useCurrentUser } from "@/hooks/use-session";
+import Link from "next/link";
+import { useProfile } from "@/hooks/use-profile";
 import { useCanShare, useOrigin } from "@/hooks/use-browser";
 import { Button } from "@/components/ui/button";
 import { PaperNote } from "@/components/brand/paper-note";
@@ -10,10 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AppPage } from "@/components/layout/app-page";
 
 export function LinkView() {
-  const me = useCurrentUser();
+  // the username comes with the profile
+  const profile = useProfile();
   const origin = useOrigin();
   const canShare = useCanShare();
-  const url = origin ? `${origin}/u/${me.id}` : null;
+  const username = profile.data?.username;
+  const url = origin && username ? `${origin}/u/${username}` : null;
 
   const copy = async () => {
     if (!url) return;
@@ -50,6 +53,15 @@ export function LinkView() {
         ) : (
           <Skeleton className="h-8 w-full bg-paper-dim" />
         )}
+        {username && (
+          <p className="-mt-2 text-sm font-semibold text-ink-soft">
+            Your username is <strong className="text-ink">@{username}</strong>.{" "}
+            <Link href="/profile#account" className="font-bold text-ink underline underline-offset-4">
+              Change it
+            </Link>
+          </p>
+        )}
+        {profile.isError && <p role="alert" className="text-sm font-bold text-danger">Couldn&apos;t load your link. Reload the page.</p>}
         <div className="flex flex-wrap gap-3">
           <Button variant="pop" onClick={() => void copy()} disabled={!url}>
             <Copy aria-hidden="true" /> Copy link

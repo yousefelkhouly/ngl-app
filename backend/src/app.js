@@ -5,7 +5,7 @@ import { env } from "./lib/config/env.js";
 import { handleError } from "./lib/errors/error-handle.js";
 import { router } from "./routes.js";
 import { correlationId } from "./pkg/correlation/correlation.js";
-import { globalLimiter } from "./lib/security/rate-limit.js";
+import { readLimiter, writeLimiter } from "./lib/security/rate-limit.js";
 import { clientIp } from "./lib/security/client-ip.js";
 import { AppError } from "./lib/errors/appError.js";
 import { UPLOADS_DIR } from "./pkg/media/multer.js";
@@ -25,7 +25,7 @@ export function createApp() {
   app.use(cors({ origin: env.clientUrls, credentials: true }));
 
   app.use(clientIp);
-  app.use(globalLimiter);
+  app.use(readLimiter, writeLimiter);
 
   // nosniff: the browser uses the content-type from the extension
   // instead of guessing one from the file's bytes

@@ -12,4 +12,6 @@ conversationRouter.post(
   conversationController.sendMessage,
 );
 
+conversationRouter.post("/:id/block", guard, conversationController.blockParticipant);
+
 export default conversationRouter;

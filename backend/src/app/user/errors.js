@@ -7,3 +7,4 @@ export const userNotVerified = new AppError("user is not verified", 403);
 export const tooManyDocuments = (max) =>
   new AppError(`you can keep up to ${max} documents, delete some first`, 400);
 export const documentNotFound = new AppError("document not found", 404);
+export const usernameTaken = new AppError("that username is taken", 409);

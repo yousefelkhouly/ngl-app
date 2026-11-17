@@ -13,6 +13,8 @@ export interface PublicUser {
 export interface PublicProfile {
   _id: string;
   name: string;
+  // missing only for accounts made before usernames, until they open their profile
+  username?: string;
   profilePicturePath?: string;
   coverImagesPath: string[];
 }
@@ -30,8 +32,15 @@ export interface UserDocument {
 
 // your own profile, from /user/me
 export interface Profile extends PublicProfile {
+  username: string;
   email: string;
+  provider: "local" | "google" | "facebook";
+  // false for accounts made with Google that never set one
+  hasPassword: boolean;
   documents: UserDocument[];
+  twoStepVerification: boolean;
+  // how many people you blocked; who they are isn't shown
+  blockedCount: number;
 }
 
 // the logged-in user, read from the access token by /api/auth/session

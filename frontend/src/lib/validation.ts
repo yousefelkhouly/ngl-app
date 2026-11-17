@@ -32,6 +32,12 @@ export const DOCUMENT_ACCEPT = [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ...DO
 const objectIdPattern = /^[0-9a-f]{24}$/i;
 export const isObjectId = (value: string) => objectIdPattern.test(value);
 
+// starts with a letter, so it never looks like an account id (older links use those)
+const usernamePattern = /^[a-z][a-z0-9_.]{2,19}$/;
+export const isUsername = (value: string) => usernamePattern.test(value);
+// what can follow /u/ in a share link
+export const isProfileHandle = (value: string) => isObjectId(value) || isUsername(value.toLowerCase());
+
 const email = z
   .string()
   .trim()
@@ -86,6 +92,31 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+export const profileDetailsSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(NAME_MIN, `At least ${NAME_MIN} characters`)
+    .max(NAME_MAX, `At most ${NAME_MAX} characters`),
+  username: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(usernamePattern, "3 to 20 letters, numbers, dots or underscores, starting with a letter"),
+});
+
+export const changePasswordSchema = z
+  .object({
+    // empty for accounts made with Google, which have no password yet
+    currentPassword: z.string(),
+    newPassword: password,
+    confirmPassword: z.string(),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
 export const sendMessageSchema = z.object({
   content: z
     .string()
@@ -105,6 +136,8 @@ export type RegisterValues = z.infer<typeof registerSchema>;
 export type EmailValues = z.infer<typeof emailSchema>;
 export type VerifyValues = z.infer<typeof verifySchema>;
 export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
+export type ProfileDetailsValues = z.infer<typeof profileDetailsSchema>;
+export type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
 export type SendMessageValues = z.infer<typeof sendMessageSchema>;
 export type ChatMessageValues = z.infer<typeof chatMessageSchema>;
 

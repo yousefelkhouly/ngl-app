@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useSignedIn } from "@/hooks/use-session";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -26,7 +27,7 @@ export function VerifyForm() {
 }
 
 function VerifySteps({ defaultEmail, justSent }: { defaultEmail: string; justSent: boolean }) {
-  const router = useRouter();
+  const signedIn = useSignedIn();
 
   const ids = useFieldIds("email", "code");
   const form = useForm<VerifyValues>({
@@ -35,11 +36,12 @@ function VerifySteps({ defaultEmail, justSent }: { defaultEmail: string; justSen
   });
   const { errors } = form.formState;
 
+  // the right code signs the new account in: straight to the inbox, no password again
   const verify = useMutation({
     mutationFn: ({ email, code }: VerifyValues) => verifyAccount(email, code),
-    onSuccess: (_data, { email }) => {
-      toast.success("Account verified. Sign in to open your inbox.");
-      router.push(`/login?email=${encodeURIComponent(email)}`);
+    onSuccess: async () => {
+      toast.success("You're in. Share your link to get your first note.");
+      await signedIn("/inbox");
     },
     // empty the boxes: the code input can't overwrite a full code with a new one
     onError: () => form.resetField("code"),
@@ -100,7 +102,7 @@ function VerifySteps({ defaultEmail, justSent }: { defaultEmail: string; justSen
         ) : (
           <FormError message={codeStepError(verify.error, resend.error)} />
         )}
-        <SubmitButton variant="pop" size="lg" pending={verify.isPending} pendingLabel="Verifying…">
+        <SubmitButton variant="pop" size="lg" pending={verify.isPending || verify.isSuccess} pendingLabel="Verifying…">
           Verify account
         </SubmitButton>
       </form>

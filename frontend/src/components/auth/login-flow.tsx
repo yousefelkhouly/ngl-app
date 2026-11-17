@@ -6,8 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { enableTwoStepVerification, login, verifyCodeToLogin } from "@/lib/api/auth";
+import { login, verifyCodeToLogin } from "@/lib/api/auth";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { safeNextPath } from "@/lib/format";
 import { codeSchema, loginSchema, type CodeValues, type LoginValues } from "@/lib/validation";
@@ -27,11 +26,10 @@ import { useFieldIds } from "@/hooks/use-field-ids";
 interface CodeSent {
   email: string;
   password: string;
-  twoStepEnabled: boolean;
 }
 
-// the backend never logs in from a password alone: it emails a code first.
-// step 1 checks the password, step 2 takes the code
+// step 1 checks the password. that signs in, unless the account has 2-step verification on:
+// then a code is emailed and step 2 takes it
 export function LoginFlow() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") ?? "";
@@ -60,7 +58,7 @@ function LoginSteps({ defaultEmail, next }: { defaultEmail: string; next: string
     <CredentialsStep
       defaultEmail={defaultEmail}
       onCodeSent={setCodeSent}
-      onGoogleSignedIn={() => signedIn(next)}
+      onSignedIn={() => signedIn(next)}
     />
   );
 }
@@ -68,11 +66,11 @@ function LoginSteps({ defaultEmail, next }: { defaultEmail: string; next: string
 function CredentialsStep({
   defaultEmail,
   onCodeSent,
-  onGoogleSignedIn,
+  onSignedIn,
 }: {
   defaultEmail: string;
   onCodeSent: (sent: CodeSent) => void;
-  onGoogleSignedIn: () => Promise<void>;
+  onSignedIn: () => Promise<void>;
 }) {
   const ids = useFieldIds("email", "password");
   const form = useForm<LoginValues>({
@@ -83,7 +81,10 @@ function CredentialsStep({
 
   const mutation = useMutation({
     mutationFn: (values: LoginValues) => login(values.email, values.password),
-    onSuccess: ({ twoStepEnabled }, values) => onCodeSent({ ...values, twoStepEnabled }),
+    onSuccess: async ({ twoStepEnabled }, values) => {
+      if (twoStepEnabled) onCodeSent(values);
+      else await onSignedIn();
+    },
   });
 
   const unverified =
@@ -92,7 +93,7 @@ function CredentialsStep({
   return (
     <AuthCard
       title="Welcome back"
-      description="We'll email you a 6-digit code to finish signing in."
+      description="Sign in to read your notes."
       footer={
         <>
           New here?{" "}
@@ -133,11 +134,16 @@ function CredentialsStep({
           <FormError message={mutation.error ? errorMessage(mutation.error) : null} />
         )}
 
-        <SubmitButton variant="pop" size="lg" pending={mutation.isPending} pendingLabel="Checking…">
-          Send me a code
+        <SubmitButton
+          variant="pop"
+          size="lg"
+          pending={mutation.isPending || mutation.isSuccess}
+          pendingLabel="Signing in…"
+        >
+          Sign in
         </SubmitButton>
       </form>
-      <GoogleButton onSignedIn={onGoogleSignedIn} />
+      <GoogleButton onSignedIn={onSignedIn} />
     </AuthCard>
   );
 }
@@ -145,7 +151,6 @@ function CredentialsStep({
 function CodeStep({
   email,
   password,
-  twoStepEnabled,
   onBack,
   onDone,
 }: CodeSent & { onBack: () => void; onDone: () => Promise<void> }) {
@@ -153,14 +158,9 @@ function CodeStep({
   const form = useForm<CodeValues>({ resolver: zodResolver(codeSchema), defaultValues: { code: "" } });
   const { errors } = form.formState;
 
-  // without 2-step verification the code goes to the endpoint that turns it on
   const verify = useMutation({
-    mutationFn: ({ code }: CodeValues) =>
-      twoStepEnabled ? verifyCodeToLogin(email, code) : enableTwoStepVerification(email, code),
-    onSuccess: async () => {
-      if (!twoStepEnabled) toast.success("2-step verification is on. You're signed in.");
-      await onDone();
-    },
+    mutationFn: ({ code }: CodeValues) => verifyCodeToLogin(email, code),
+    onSuccess: onDone,
     // empty the boxes: the code input can't overwrite a full code with a new one
     onError: () => form.resetField("code"),
   });
@@ -174,8 +174,8 @@ function CodeStep({
       title="Check your email"
       description={
         <>
-          We sent a 6-digit code to <strong className="text-ink">{email}</strong>.
-          {!twoStepEnabled && " Using it also turns on 2-step verification, so every sign-in asks for a code."}
+          You have 2-step verification on, so we sent a 6-digit code to{" "}
+          <strong className="text-ink">{email}</strong>.
         </>
       }
     >

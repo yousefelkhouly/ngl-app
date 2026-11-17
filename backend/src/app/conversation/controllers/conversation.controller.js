@@ -46,3 +46,13 @@ export async function sendMessage(req, res, next) {
     next(error);
   }
 }
+
+export async function blockParticipant(req, res, next) {
+  try {
+    const { id } = validateDTO(conversationIdDto, req.params);
+    const data = await conversationService.blockParticipant(id, req.user.id);
+    res.json({ message: "blocked", success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}

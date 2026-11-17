@@ -36,3 +36,30 @@ export const resetPasswordDTO = z.object({
 export const googleLoginDTO = z.object({
   idToken: z.string().min(1),
 });
+
+export const twoStepCodeDTO = z.object({
+  enabled: z.boolean(),
+});
+
+export const setTwoStepDTO = z.object({
+  enabled: z.boolean(),
+  code: codeField,
+});
+
+export const changePasswordDTO = z.object({
+  // left out by accounts made with Google, which have no password yet
+  currentPassword: z.string().max(100).optional(),
+  newPassword: passwordField,
+});
+
+export const changeEmailDTO = z.object({
+  email: emailField,
+});
+
+export const codeDTO = z.object({
+  code: codeField,
+});
+
+export const deleteAccountDTO = z.object({
+  password: z.string().max(100).optional(),
+});

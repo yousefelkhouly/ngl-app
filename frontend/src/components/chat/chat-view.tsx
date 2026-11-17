@@ -1,18 +1,34 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowUp } from "lucide-react";
+import { ArrowLeft, ArrowUp, Ban } from "lucide-react";
 import { cn } from "cn";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { clockTime } from "@/lib/format";
 import { CONTENT_MAX, chatMessageSchema, isObjectId, type ChatMessageValues } from "@/lib/validation";
 import type { ConversationMessage } from "@/lib/api/types";
-import { otherParticipant, useConversation, useSendChatMessage } from "@/hooks/use-conversations";
+import {
+  otherParticipant,
+  useBlockConversation,
+  useConversation,
+  useSendChatMessage,
+} from "@/hooks/use-conversations";
 import { useCurrentUser } from "@/hooks/use-session";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Avatar } from "@/components/common/avatar";
 import { EmptyState, ErrorState, NotesSkeleton } from "@/components/common/states";
 import { FormError } from "@/components/common/form-field";
@@ -38,6 +54,57 @@ function Bubble({ message, mine }: { message: ConversationMessage; mine: boolean
         {message.pending ? "Sending…" : clockTime(message.msgId.createdAt)}
       </span>
     </li>
+  );
+}
+
+function BlockButton({ conversationId, name }: { conversationId: string; name: string }) {
+  const router = useRouter();
+  const block = useBlockConversation(conversationId);
+  const [open, setOpen] = useState(false);
+
+  const confirm = () =>
+    block.mutate(undefined, {
+      onSuccess: () => {
+        toast.success(`${name} is blocked.`);
+        router.replace("/chats");
+      },
+    });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) block.reset();
+        setOpen(next);
+      }}
+    >
+      <Button
+        variant="ghost"
+        size="sm"
+        className="ml-auto shrink-0 text-paper hover:bg-paper/15"
+        onClick={() => setOpen(true)}
+      >
+        <Ban aria-hidden="true" /> Block
+      </Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Block {name}?</DialogTitle>
+          <DialogDescription>
+            They won&apos;t be able to message you or send you notes with their account, and this chat
+            leaves your list. You can unblock everyone from your profile.
+          </DialogDescription>
+        </DialogHeader>
+        <FormError message={block.error ? errorMessage(block.error) : null} />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <Button variant="destructive" onClick={confirm} disabled={block.isPending || block.isSuccess}>
+            {block.isPending ? "Blocking…" : "Block"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -142,6 +209,7 @@ export function ChatView({ id }: { id: string }) {
             <h1 className="truncate text-2xl leading-tight font-extrabold tracking-tight">{other.name}</h1>
             <p className="font-mono text-[11px] font-bold tracking-wider text-ground-soft uppercase">Unredacted</p>
           </div>
+          <BlockButton conversationId={conversation._id} name={other.name} />
         </header>
 
         <div className="flex min-h-[50vh] flex-col gap-5 px-3 py-6 sm:px-5">

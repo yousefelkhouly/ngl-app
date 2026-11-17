@@ -12,7 +12,7 @@ test("profile: details, uploads with checks, sign out", async ({ page, context, 
   await signIn(context, user);
   await page.goto("/profile");
   await expect(page.getByText(user.name, { exact: true })).toBeVisible();
-  await expect(page.getByText(user.email)).toBeVisible();
+  await expect(page.getByText(user.email).first()).toBeVisible();
 
   const picture = page.getByRole("region", { name: "Profile picture" });
   // a file of the wrong type is stopped before it's sent
@@ -91,6 +91,7 @@ test("a profile picture shows up for the people you chat with", async ({ page, c
 
   await bobPage.goto(`/u/${alice.id}`);
   await bobPage.getByLabel("Your note").filter({ visible: true }).fill("picture test");
+  await bobPage.getByLabel("Let them unredact me").filter({ visible: true }).check();
   await bobPage.getByRole("button", { name: "Send it, anonymously" }).click();
   await expect(bobPage.getByText("Your note is in their inbox.")).toBeVisible();
 

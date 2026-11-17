@@ -75,6 +75,7 @@ test.describe("accessibility (axe, WCAG 2.2 AA)", () => {
     await bobPage.goto(`/u/${alice.id}`);
     await expectNoAxeViolations(bobPage);
     await bobPage.getByLabel("Your note").filter({ visible: true }).fill("a note to scan");
+    await bobPage.getByLabel("Let them unredact me").filter({ visible: true }).check();
     await bobPage.getByRole("button", { name: "Send it, anonymously" }).click();
     await expect(bobPage.getByText("Your note is in their inbox.")).toBeVisible();
     await expectNoAxeViolations(bobPage);
@@ -97,6 +98,8 @@ test.describe("accessibility (axe, WCAG 2.2 AA)", () => {
     for (const path of ["/chats", "/link", "/profile"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      // the settings cards come with the profile: scan them too, not just the page around them
+      if (path === "/profile") await expect(page.getByRole("region", { name: "Account" })).toBeVisible();
       await expectNoAxeViolations(page);
     }
   });

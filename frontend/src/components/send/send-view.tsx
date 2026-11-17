@@ -7,7 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { m } from "motion/react";
 import { sendMessage } from "@/lib/api/messages";
 import { ApiError, errorMessage } from "@/lib/api/client";
-import { CONTENT_MAX, isObjectId, sendMessageSchema, type SendMessageValues } from "@/lib/validation";
+import { CONTENT_MAX, isObjectId, isProfileHandle, sendMessageSchema, type SendMessageValues } from "@/lib/validation";
 import { useSession } from "@/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,26 +16,47 @@ import { RedactionBar } from "@/components/brand/redaction-bar";
 import { PaperNote } from "@/components/brand/paper-note";
 import { FormError, fieldErrorId } from "@/components/common/form-field";
 import { SubmitButton } from "@/components/common/submit-button";
-import { EmptyState } from "@/components/common/states";
+import { EmptyState, ErrorState } from "@/components/common/states";
 import { useFieldIds } from "@/hooks/use-field-ids";
 import { usePublicProfile } from "@/hooks/use-profile";
 import { ProfileHeader, ProfileHeaderSkeleton } from "@/components/profile/profile-header";
 
-export function SendView({ receiverId }: { receiverId: string }) {
-  const { user: me, isPending: sessionPending } = useSession();
+function BrokenLink({ reason }: { reason: string }) {
+  return (
+    <EmptyState
+      title="This link doesn't work."
+      action={
+        <Button asChild variant="pop">
+          <Link href="/register">Get your own link</Link>
+        </Button>
+      }
+    >
+      {reason}
+    </EmptyState>
+  );
+}
 
-  if (!isObjectId(receiverId)) {
-    return (
-      <EmptyState
-        title="This link doesn't work."
-        action={
-          <Button asChild variant="pop">
-            <Link href="/register">Get your own link</Link>
-          </Button>
-        }
-      >
-        Check that you copied the whole link.
-      </EmptyState>
+// handle: what follows /u/ in the link, a username, or an account id in links made before usernames
+export function SendView({ handle }: { handle: string }) {
+  if (!isProfileHandle(handle)) return <BrokenLink reason="Check that you copied the whole link." />;
+  return <SendToProfile handle={handle.toLowerCase()} />;
+}
+
+// who the note is for, above the form. a link to an account that's gone ends here
+function SendToProfile({ handle }: { handle: string }) {
+  const { user: me, isPending: sessionPending } = useSession();
+  const profile = usePublicProfile(handle);
+  // an id link can be sent to before the profile loads; a username link needs it
+  const receiverId = isObjectId(handle) ? handle : profile.data?._id;
+
+  if (profile.error instanceof ApiError && profile.error.status === 404) {
+    return <BrokenLink reason="The account it belongs to doesn't exist anymore." />;
+  }
+  if (!receiverId) {
+    return profile.isError ? (
+      <ErrorState message={errorMessage(profile.error)} onRetry={() => void profile.refetch()} />
+    ) : (
+      <ProfileHeaderSkeleton />
     );
   }
 
@@ -59,48 +80,11 @@ export function SendView({ receiverId }: { receiverId: string }) {
     );
   }
 
-  return (
-    <SendToProfile
-      receiverId={receiverId}
-      signedIn={Boolean(me)}
-      signedInAs={me?.name}
-      sessionPending={sessionPending}
-    />
-  );
-}
-
-// who the note is for, above the form. a link to an account that's gone ends here
-function SendToProfile({
-  receiverId,
-  signedIn,
-  signedInAs,
-  sessionPending,
-}: {
-  receiverId: string;
-  signedIn: boolean;
-  signedInAs?: string;
-  sessionPending: boolean;
-}) {
-  const profile = usePublicProfile(receiverId);
-
-  if (profile.error instanceof ApiError && profile.error.status === 404) {
-    return (
-      <EmptyState
-        title="This link doesn't work."
-        action={
-          <Button asChild variant="pop">
-            <Link href="/register">Get your own link</Link>
-          </Button>
-        }
-      >
-        The account it belongs to doesn&apos;t exist anymore.
-      </EmptyState>
-    );
-  }
+  const signedIn = Boolean(me);
 
   return (
     <div className="flex flex-col gap-12">
-      {/* the form still works if the profile can't load: the header is only a nice-to-have */}
+      {/* with an id link the form still works if the profile can't load: the header is a nice-to-have */}
       {profile.isPending ? <ProfileHeaderSkeleton /> : profile.data && <ProfileHeader profile={profile.data} />}
       <div className="flex flex-wrap items-center gap-x-16 gap-y-12">
         <section className="flex min-w-0 flex-[1_1_480px] flex-col gap-6">
@@ -110,8 +94,8 @@ function SendToProfile({
           <p className="max-w-xl text-xl leading-snug font-semibold sm:text-2xl">
             {signedIn ? (
               <>
-                You&apos;ll stay <RedactionBar label="anonymous" className="w-[6em]" /> unless they decide to let you
-                in.
+                You stay <RedactionBar label="anonymous" className="w-[6em]" />. You can choose to let them
+                unredact you.
               </>
             ) : (
               <>
@@ -134,7 +118,7 @@ function SendToProfile({
               NEEDED
             </span>
           )}
-          <SendForm receiverId={receiverId} signedIn={signedIn} signedInAs={signedInAs} />
+          <SendForm receiverId={receiverId} handle={handle} signedIn={signedIn} signedInAs={me?.name} />
         </div>
       </div>
     </div>
@@ -143,17 +127,19 @@ function SendToProfile({
 
 function SendForm({
   receiverId,
+  handle,
   signedIn,
   signedInAs,
 }: {
   receiverId: string;
+  handle: string;
   signedIn: boolean;
   signedInAs?: string;
 }) {
   const ids = useFieldIds("content", "revealable", "revealable-hint", "content-count");
   const form = useForm<SendMessageValues>({
     resolver: zodResolver(sendMessageSchema),
-    defaultValues: { content: "", revealable: true },
+    defaultValues: { content: "", revealable: false },
   });
   const { errors } = form.formState;
   const length = useWatch({ control: form.control, name: "content" }).length;
@@ -191,7 +177,7 @@ function SendForm({
               Send another
             </Button>
             <Button asChild variant="pop">
-              <Link href={signedIn ? "/link" : "/register"}>Get your own link</Link>
+              {signedIn ? <Link href="/inbox">Open your inbox</Link> : <Link href="/register">Get your own link</Link>}
             </Button>
           </div>
         </PaperNote>
@@ -249,7 +235,7 @@ function SendForm({
               Let them unredact me
             </label>
             <p id={ids["revealable-hint"]} className="text-sm leading-relaxed text-ink-soft">
-              Only if they accept your note. Unchecked, you stay hidden forever.
+              If you tick this, they can choose to see it was you, and a chat opens. Left unticked, you stay hidden for good.
             </p>
           </div>
         </div>
@@ -273,7 +259,7 @@ function SendForm({
         ) : (
           <>
             Have an account?{" "}
-            <Link href={`/login?next=${encodeURIComponent(`/u/${receiverId}`)}`} className="text-ink underline underline-offset-4">
+            <Link href={`/login?next=${encodeURIComponent(`/u/${handle}`)}`} className="text-ink underline underline-offset-4">
               Sign in
             </Link>
           </>

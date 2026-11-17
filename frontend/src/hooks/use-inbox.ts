@@ -1,7 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { acceptRequest, declineRequest, getInbox } from "@/lib/api/messages";
+import {
+  acceptRequest,
+  blockNoteSender,
+  declineRequest,
+  deleteNote,
+  getInbox,
+  reportNote,
+  type ReportReason,
+} from "@/lib/api/messages";
 import { queryKeys } from "@/lib/query-keys";
 import type { InboxMessage } from "@/lib/api/types";
 
@@ -56,6 +64,34 @@ export function useDeclineRequest() {
       queryClient.setQueryData<InboxMessage[]>(queryKeys.inbox, (messages) =>
         setRequestStatus(messages, requestId, "declined"),
       );
+    },
+  });
+}
+
+export type NoteAction = { kind: "delete" } | { kind: "block" } | { kind: "report"; reason: ReportReason };
+
+function runNoteAction(messageId: string, action: NoteAction) {
+  if (action.kind === "delete") return deleteNote(messageId);
+  if (action.kind === "block") return blockNoteSender(messageId);
+  return reportNote(messageId, action.reason);
+}
+
+// delete, block the sender or report: each takes the note out of the inbox.
+// blocking also clears that sender's other notes, so the inbox is fetched again
+export function useNoteAction(messageId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: NoteAction) => runNoteAction(messageId, action),
+    onSuccess: async (_result, action) => {
+      queryClient.setQueryData<InboxMessage[]>(queryKeys.inbox, (messages) =>
+        messages?.filter((message) => message._id !== messageId),
+      );
+      if (action.kind === "block") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.inbox }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.profile }),
+        ]);
+      }
     },
   });
 }

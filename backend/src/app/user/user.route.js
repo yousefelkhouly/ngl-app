@@ -17,6 +17,10 @@ const DOCUMENTS_PER_UPLOAD = 5;
 const userRouter = Router();
 
 userRouter.get("/me", guard, userController.getMe);
+userRouter.patch("/me", guard, userController.updateProfile);
+userRouter.delete("/profile-picture", guard, userController.removeProfilePicture);
+userRouter.delete("/cover-images", guard, userController.removeCoverImages);
+userRouter.delete("/blocked", guard, userController.unblockEveryone);
 
 userRouter.post(
   "/upload-profile-picture",
